@@ -129,10 +129,20 @@ abstract class CardPulseDatabase : RoomDatabase() {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE transactions ADD COLUMN rawEmailId TEXT")
-                database.execSQL("ALTER TABLE transactions ADD COLUMN source TEXT NOT NULL DEFAULT 'MANUAL'")
-                database.execSQL("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'CONFIRMED'")
-                database.execSQL("ALTER TABLE transactions ADD COLUMN isCredit INTEGER NOT NULL DEFAULT 0")
+                val cursor = database.query("PRAGMA table_info(transactions)")
+                val existingColumns = mutableSetOf<String>()
+                while (cursor.moveToNext()) {
+                    existingColumns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                }
+                cursor.close()
+                if (!existingColumns.contains("rawEmailId"))
+                    database.execSQL("ALTER TABLE transactions ADD COLUMN rawEmailId TEXT")
+                if (!existingColumns.contains("source"))
+                    database.execSQL("ALTER TABLE transactions ADD COLUMN source TEXT NOT NULL DEFAULT 'MANUAL'")
+                if (!existingColumns.contains("status"))
+                    database.execSQL("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'CONFIRMED'")
+                if (!existingColumns.contains("isCredit"))
+                    database.execSQL("ALTER TABLE transactions ADD COLUMN isCredit INTEGER NOT NULL DEFAULT 0")
             }
         }
 

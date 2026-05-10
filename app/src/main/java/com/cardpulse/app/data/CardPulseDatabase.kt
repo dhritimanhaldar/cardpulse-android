@@ -2,8 +2,6 @@ package com.cardpulse.app.data
 
 import android.content.Context
 import androidx.room.*
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.SpendRule
@@ -112,7 +110,7 @@ interface NotificationLogDao {
         LoungeAccess::class,
         NotificationLog::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -127,25 +125,6 @@ abstract class CardPulseDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: CardPulseDatabase? = null
 
-        val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                val cursor = database.query("PRAGMA table_info(transactions)")
-                val existingColumns = mutableSetOf<String>()
-                while (cursor.moveToNext()) {
-                    existingColumns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
-                }
-                cursor.close()
-                if (!existingColumns.contains("rawEmailId"))
-                    database.execSQL("ALTER TABLE transactions ADD COLUMN rawEmailId TEXT")
-                if (!existingColumns.contains("source"))
-                    database.execSQL("ALTER TABLE transactions ADD COLUMN source TEXT NOT NULL DEFAULT 'MANUAL'")
-                if (!existingColumns.contains("status"))
-                    database.execSQL("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'CONFIRMED'")
-                if (!existingColumns.contains("isCredit"))
-                    database.execSQL("ALTER TABLE transactions ADD COLUMN isCredit INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
         fun getInstance(context: Context): CardPulseDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -153,7 +132,6 @@ abstract class CardPulseDatabase : RoomDatabase() {
                     CardPulseDatabase::class.java,
                     "cardpulse_db"
                 )
-                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { INSTANCE = it }

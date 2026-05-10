@@ -60,6 +60,13 @@ class CardDetailViewModel(
         }
     }
 
+    fun deleteCard(onDeleted: () -> Unit) {
+        viewModelScope.launch {
+            repository.deleteCard(cardId)
+            onDeleted()
+        }
+    }
+
     companion object {
         fun factory(context: Context, cardId: Int): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,7 +31,7 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CardDetailScreen(cardId: Int, onBack: () -> Unit) {
+fun CardDetailScreen(cardId: Int, onBack: () -> Unit, onDeleted: () -> Unit = onBack) {
     val context = LocalContext.current
     val viewModel: CardDetailViewModel = viewModel(
         factory = CardDetailViewModel.factory(context, cardId)
@@ -38,6 +39,8 @@ fun CardDetailScreen(cardId: Int, onBack: () -> Unit) {
     val cardDetail by viewModel.cardDetail.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = PulseBackground,
@@ -55,10 +58,31 @@ fun CardDetailScreen(cardId: Int, onBack: () -> Unit) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = PulseOnSurface)
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Card", tint = Color(0xFFE53935))
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PulseBackground)
             )
         }
     ) { padding ->
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Delete Card") },
+                text = { Text("This will delete the card and all its transactions. This cannot be undone.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDeleteDialog = false
+                        viewModel.deleteCard { onDeleted() }
+                    }) { Text("Delete", color = Color(0xFFE53935)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = PulseBlue)

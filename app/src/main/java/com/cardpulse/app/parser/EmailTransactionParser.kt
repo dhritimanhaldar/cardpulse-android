@@ -27,6 +27,11 @@ object EmailTransactionParser {
         RegexOption.IGNORE_CASE)
 
     fun parse(email: RawEmailData, cardIdByLast4: Map<String, Int>): Transaction? {
+        val junkSubjects = listOf("view this message in html", "html version", "unsubscribe",
+            "confirm your", "verify your", "welcome to", "statement ready", "ensure access")
+        if (junkSubjects.any { email.subject.lowercase().contains(it) }) return null
+        if (email.subject.lowercase().contains("view this message")) return null
+
         val text = "${email.subject} ${email.body}"
 
         val amount = amountRegex.find(text)
@@ -34,26 +39,28 @@ object EmailTransactionParser {
             ?.replace(",", "")
             ?.toDoubleOrNull() ?: return null
 
-        if (amount <= 0) return null
+        if (amount <= 0 || amount > 10_000_000) return null
 
-        val merchant = merchantRegex.find(text)?.groupValues?.get(1)?.trim()
+        val rawMerchant = merchantRegex.find(text)?.groupValues?.get(1)?.trim()
             ?: extractFallbackMerchant(email.subject)
-            ?: "Unknown"
+            ?: return null
+
+        if (rawMerchant.length < 3 || rawMerchant.matches(Regex("\\d+")) || rawMerchant.lowercase().contains("html")) return null
 
         val last4 = last4Regex.find(text)?.groupValues?.get(1)
         val cardId = last4?.let { cardIdByLast4[it] } ?: cardIdByLast4.values.firstOrNull() ?: return null
 
         val date = tryParseDate(email.dateHeader) ?: Date()
 
-        val isCredit = text.contains(Regex("credit|refund|cashback|reversal", RegexOption.IGNORE_CASE))
+        val isCredit = text.contains(Regex("credit|refund|cashback|reversal|credited", RegexOption.IGNORE_CASE))
 
         return Transaction(
             id = 0,
             cardId = cardId,
             amount = amount,
-            merchant = merchant,
+            merchant = rawMerchant,
             date = date,
-            category = suggestCategory(merchant),
+            category = suggestCategory(rawMerchant),
             isCredit = isCredit,
             source = TransactionSource.GMAIL,
             status = TransactionStatus.CONFIRMED,

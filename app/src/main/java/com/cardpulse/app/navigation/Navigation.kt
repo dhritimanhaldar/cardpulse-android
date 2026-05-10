@@ -59,7 +59,8 @@ fun CardPulseNavHost(
             val cardId = backStackEntry.arguments?.getString("cardId")?.toIntOrNull() ?: return@composable
             CardDetailScreen(
                 cardId = cardId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onDeleted = { navController.popBackStack() }
             )
         }
 

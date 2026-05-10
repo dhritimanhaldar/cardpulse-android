@@ -33,8 +33,11 @@ import androidx.compose.ui.platform.LocalContext
 import com.cardpulse.app.viewmodel.DashboardViewModel
 import com.cardpulse.app.viewmodel.GmailSyncViewModel
 import com.cardpulse.app.viewmodel.SyncState
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
     val context = LocalContext.current
@@ -46,8 +49,13 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
     val syncVm: GmailSyncViewModel = viewModel()
     val syncState by syncVm.syncState.collectAsStateWithLifecycle()
 
+    val smsPermissionState = rememberPermissionState(android.Manifest.permission.READ_SMS)
+
     // Auto-sync once on dashboard entry
     LaunchedEffect(Unit) {
+        if (!smsPermissionState.status.isGranted) {
+            smsPermissionState.launchPermissionRequest()
+        }
         syncVm.autoSyncOnce()
     }
 

@@ -90,6 +90,7 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.4")
     implementation("androidx.work:work-runtime-ktx:2.10.1")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

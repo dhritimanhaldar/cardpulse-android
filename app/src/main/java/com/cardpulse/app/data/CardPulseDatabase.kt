@@ -111,7 +111,7 @@ interface NotificationLogDao {
         LoungeAccess::class,
         NotificationLog::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -21,7 +21,10 @@ data class Card(
     val annualFee: Double,
     val isActive: Boolean = true,
     val addedOn: Date = Date(),
-    val color: String = "#1A73E8"   // hex color for card UI
+    val color: String = "#1A73E8",   // hex color for card UI
+    val currentOutstanding: Double = 0.0,
+    val minimumDue: Double = 0.0,
+    val paymentDueDate: String? = null
 )
 
 // ─── Transaction ───────────────────────────────────────────────

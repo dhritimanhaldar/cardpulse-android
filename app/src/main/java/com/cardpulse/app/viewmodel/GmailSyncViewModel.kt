@@ -7,12 +7,15 @@ import androidx.lifecycle.viewModelScope
 import com.cardpulse.app.config.AppConfig
 import com.cardpulse.app.data.CardRepository
 import com.cardpulse.app.data.GmailFetcher
+import com.cardpulse.app.data.SmsReader
 import com.cardpulse.app.gemini.GeminiService
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
 import com.cardpulse.app.parser.CardDetectionParser
 import com.cardpulse.app.parser.EmailTransactionParser
+import com.cardpulse.app.parser.SmsTransactionParser
+import com.cardpulse.app.parser.StatementEmailParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -28,6 +31,7 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val repository = CardRepository(application)
     private val gmailFetcher = GmailFetcher(application)
+    private val smsReader = SmsReader(application)
     private val geminiService = GeminiService()
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
@@ -73,9 +77,27 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 if (allCards.isEmpty()) { _syncState.value = SyncState.Done(0); return@launch }
                 var cardIdByLast4 = allCards.associate { it.last4Digits to it.id }
 
+                // Split emails: statements vs transactions
+                val statementEmails = emails.filter { StatementEmailParser.isStatementEmail(it.subject) }
+                val transactionEmails = emails.filter { !StatementEmailParser.isStatementEmail(it.subject) }
+
+                // Process statements → update card outstanding/due
+                for (email in statementEmails) {
+                    val statement = StatementEmailParser.parse(email)
+                    val last4 = statement.last4 ?: continue
+                    val card = allCards.find { it.last4Digits == last4 } ?: continue
+                    val updated = card.copy(
+                        currentOutstanding = statement.totalOutstanding ?: card.currentOutstanding,
+                        minimumDue = statement.minimumDue ?: card.minimumDue,
+                        paymentDueDate = statement.dueDate ?: card.paymentDueDate,
+                        creditLimit = statement.creditLimit?.takeIf { it > 0 } ?: card.creditLimit
+                    )
+                    repository.updateCard(updated)
+                }
+
                 var newCount = 0
                 var geminiCallCount = 0
-                for (email in emails) {
+                for (email in transactionEmails) {
                     if (repository.getTransactionByEmailId(email.messageId) != null) continue // already saved
 
                     // Layer 1: fast regex parse
@@ -143,6 +165,19 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                         newCount++
                     }
                 }
+
+                // SMS sync
+                val smsList = smsReader.readBankSms()
+                for (sms in smsList) {
+                    // Deduplicate by timestamp+amount (SMS has no unique ID like emailId)
+                    val dedupKey = "${sms.timestamp}_${sms.body.take(30)}"
+                    if (repository.getTransactionByEmailId(dedupKey) != null) continue
+                    val txn = SmsTransactionParser.parse(sms, cardIdByLast4) ?: continue
+                    val txnWithId = txn.copy(rawEmailId = dedupKey)
+                    repository.insertTransaction(txnWithId)
+                    newCount++
+                }
+
                 _syncState.value = SyncState.Done(newCount)
             } catch (e: Exception) {
                 _syncState.value = SyncState.Error(e.message ?: "Sync failed")

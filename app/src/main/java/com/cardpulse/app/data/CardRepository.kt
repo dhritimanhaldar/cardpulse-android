@@ -33,6 +33,9 @@ class CardRepository(context: Context) {
     suspend fun getPendingFlaggedTransactions(): List<Transaction> =
         transactionDao.getPendingFlaggedTransactions()
 
+    suspend fun getTransactionByEmailId(emailId: String): Transaction? =
+        transactionDao.getTransactionByEmailId(emailId)
+
     suspend fun getTotalSpentThisCycle(card: Card): Double {
         val cycleStart = getBillingCycleStart(card.billingCycleDay)
         return transactionDao.getTotalSpentSince(card.id, cycleStart.time) ?: 0.0

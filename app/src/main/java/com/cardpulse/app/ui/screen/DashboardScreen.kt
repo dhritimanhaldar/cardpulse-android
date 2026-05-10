@@ -25,6 +25,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.cardpulse.app.viewmodel.DashboardViewModel
+import com.cardpulse.app.viewmodel.GmailSyncViewModel
+import com.cardpulse.app.viewmodel.SyncState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +36,9 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
     val cardsWithProgress by viewModel.cardsWithProgress.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+
+    val syncVm: GmailSyncViewModel = viewModel()
+    val syncState by syncVm.syncState.collectAsStateWithLifecycle()
 
     Scaffold(
         containerColor = PulseBackground,
@@ -48,8 +53,12 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
                     )
                 },
                 actions = {
-                    IconButton(onClick = { }) {
-                        Icon(Icons.Filled.Notifications, contentDescription = "Alerts", tint = PulseSubtext)
+                    IconButton(onClick = { syncVm.syncNow() }) {
+                        if (syncState is SyncState.Syncing) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = PulseBlue)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync Gmail", tint = PulseSubtext)
+                        }
                     }
                     IconButton(onClick = { }) {
                         Icon(Icons.Filled.Person, contentDescription = "Profile", tint = PulseSubtext)
@@ -69,42 +78,63 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
             }
         }
     ) { padding ->
-        if (isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PulseBlue)
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (syncState is SyncState.Done) {
+                val count = (syncState as SyncState.Done).newCount
+                Text(
+                    text = if (count > 0) "✓ $count new transactions synced" else "✓ Already up to date",
+                    color = PulseSubtext,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                // Refresh dashboard after sync
+                LaunchedEffect(count) {
+                    if (count > 0) viewModel.refreshDashboard()
+                }
             }
-            return@Scaffold
-        }
-        errorMessage?.let {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(it, color = PulseDanger, fontSize = 13.sp)
-            }
-            return@Scaffold
-        }
-        LazyColumn(
-            modifier            = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding      = PaddingValues(vertical = 16.dp)
-        ) {
-            // Summary header
-            item {
-                SummaryHeader(
-                    totalCards = cardsWithProgress.size,
-                    totalSpent = cardsWithProgress.sumOf { it.totalSpentThisCycle }
+            if (syncState is SyncState.Error) {
+                Text(
+                    text = "Sync failed: ${(syncState as SyncState.Error).message}",
+                    color = PulseDanger,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
 
-            // Card list
-            items(cardsWithProgress) { cwp ->
-                CardProgressItem(
-                    card = cwp.card,
-                    spentAmount = cwp.totalSpentThisCycle,
-                    targetAmount = cwp.spendRules.firstOrNull()?.targetAmount ?: 100000.0,
-                    onClick = { onCardClick(cwp.card.id) }
-                )
+            if (isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = PulseBlue)
+                }
+            } else if (errorMessage != null) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(errorMessage!!, color = PulseDanger, fontSize = 13.sp)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    // Summary header
+                    item {
+                        SummaryHeader(
+                            totalCards = cardsWithProgress.size,
+                            totalSpent = cardsWithProgress.sumOf { it.totalSpentThisCycle }
+                        )
+                    }
+
+                    // Card list
+                    items(cardsWithProgress) { cwp ->
+                        CardProgressItem(
+                            card = cwp.card,
+                            spentAmount = cwp.totalSpentThisCycle,
+                            targetAmount = cwp.spendRules.firstOrNull()?.targetAmount ?: 100000.0,
+                            onClick = { onCardClick(cwp.card.id) }
+                        )
+                    }
+                }
             }
         }
     }

@@ -5,6 +5,7 @@ import androidx.lifecycle.*
 import com.cardpulse.app.data.CardRepository
 import com.cardpulse.app.model.CardWithProgress
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.model.TransactionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -46,7 +47,7 @@ class CardDetailViewModel(
     fun confirmTransaction(transactionId: Int) {
         viewModelScope.launch {
             val txn = _transactions.value.find { it.id == transactionId } ?: return@launch
-            repository.updateTransaction(txn.copy(isConfirmed = true, isFlagged = false))
+            repository.updateTransaction(txn.copy(status = TransactionStatus.CONFIRMED, isFlagged = false))
             loadCard()
         }
     }
@@ -54,7 +55,7 @@ class CardDetailViewModel(
     fun deleteTransaction(transactionId: Int) {
         viewModelScope.launch {
             val txn = _transactions.value.find { it.id == transactionId } ?: return@launch
-            repository.updateTransaction(txn.copy(isConfirmed = false))
+            repository.updateTransaction(txn.copy(status = TransactionStatus.PENDING))
             loadCard()
         }
     }

@@ -33,14 +33,19 @@ data class Transaction(
     val merchant: String,
     val category: String,           // FOOD / TRAVEL / SHOPPING / FUEL / etc.
     val date: Date,
-    val source: String,             // SMS / GMAIL / MANUAL / OCR
+    val source: TransactionSource = TransactionSource.MANUAL,
     val rawText: String = "",       // original SMS or email text
+    val rawEmailId: String? = null,
+    val status: TransactionStatus = TransactionStatus.CONFIRMED,
+    val isCredit: Boolean = false,
     val isFlagged: Boolean = false, // fraud / duplicate flag
-    val flagReason: String = "",    // reason if flagged
-    val isConfirmed: Boolean = true,// false = pending user confirmation
+    val flagReason: String? = "",   // reason if flagged
     val currency: String = "INR",
     val isInternational: Boolean = false
 )
+
+enum class TransactionSource { MANUAL, GMAIL, SMS }
+enum class TransactionStatus { CONFIRMED, PENDING, FLAGGED }
 
 // ─── Spend Rule ────────────────────────────────────────────────
 @Entity(tableName = "spend_rules")

@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.model.TransactionStatus
 import com.cardpulse.app.ui.theme.*
 import com.cardpulse.app.viewmodel.CardDetailViewModel
 import java.text.SimpleDateFormat
@@ -190,7 +191,7 @@ fun TransactionItem(txn: Transaction, onConfirm: () -> Unit) {
                 }
                 Text("₹${"%,.0f".format(txn.amount)}", fontWeight = FontWeight.Bold, color = PulseOnSurface, fontSize = 15.sp)
             }
-            if (txn.isFlagged && !txn.isConfirmed) {
+            if (txn.isFlagged && txn.status != TransactionStatus.CONFIRMED) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(PulseDanger.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
                         Text("⚠ ${txn.flagReason}", color = PulseDanger, fontSize = 11.sp)

@@ -2,6 +2,8 @@ package com.cardpulse.app.data
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.SpendRule
@@ -36,7 +38,7 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE cardId = :cardId AND date >= :fromDate ORDER BY date DESC")
     suspend fun getTransactionsSince(cardId: Int, fromDate: Long): List<Transaction>
 
-    @Query("SELECT * FROM transactions WHERE isFlagged = 1 AND isConfirmed = 0")
+    @Query("SELECT * FROM transactions WHERE status = 'FLAGGED' OR status = 'PENDING'")
     suspend fun getPendingFlaggedTransactions(): List<Transaction>
 
     @Query("""
@@ -53,6 +55,9 @@ interface TransactionDao {
 
     @Update
     suspend fun updateTransaction(transaction: Transaction)
+
+    @Query("SELECT * FROM transactions WHERE rawEmailId = :emailId LIMIT 1")
+    suspend fun getTransactionByEmailId(emailId: String): Transaction?
 
     @Query("SELECT SUM(amount) FROM transactions WHERE cardId = :cardId AND date >= :fromDate")
     suspend fun getTotalSpentSince(cardId: Int, fromDate: Long): Double?
@@ -107,7 +112,7 @@ interface NotificationLogDao {
         LoungeAccess::class,
         NotificationLog::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -122,6 +127,15 @@ abstract class CardPulseDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: CardPulseDatabase? = null
 
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE transactions ADD COLUMN rawEmailId TEXT")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN source TEXT NOT NULL DEFAULT 'MANUAL'")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'CONFIRMED'")
+                database.execSQL("ALTER TABLE transactions ADD COLUMN isCredit INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): CardPulseDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -129,6 +143,7 @@ abstract class CardPulseDatabase : RoomDatabase() {
                     CardPulseDatabase::class.java,
                     "cardpulse_db"
                 )
+                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { INSTANCE = it }

@@ -1,6 +1,8 @@
 package com.cardpulse.app.parser
 
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.model.TransactionSource
+import com.cardpulse.app.model.TransactionStatus
 import java.util.Date
 import java.util.regex.Pattern
 
@@ -67,7 +69,7 @@ object SmsParser {
             merchant = merchant,
             category = category,
             date = Date(),
-            source = "SMS",
+            source = TransactionSource.SMS,
             rawText = body,
             isFlagged = amount >= com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD
                     || (isInternational && com.cardpulse.app.config.AppConfig.FRAUD_FOREIGN_CURRENCY_FLAG),
@@ -76,7 +78,8 @@ object SmsParser {
                 isInternational -> "International transaction"
                 else -> ""
             },
-            isConfirmed = amount < com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD && !isInternational,
+            status = if (amount < com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD && !isInternational)
+                TransactionStatus.CONFIRMED else TransactionStatus.PENDING,
             isInternational = isInternational,
             currency = if (isInternational) extractCurrency(body) else "INR"
         )

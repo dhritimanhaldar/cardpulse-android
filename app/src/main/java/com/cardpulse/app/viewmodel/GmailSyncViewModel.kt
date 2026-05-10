@@ -1,6 +1,7 @@
 package com.cardpulse.app.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cardpulse.app.data.CardRepository
@@ -43,6 +44,7 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
                 // Auto-detect + create new cards
                 val detectedCards = CardDetectionParser.detectCards(emails)
+                Log.d("CardPulse", "Detected cards: ${detectedCards.map { "${it.bankName} xxxx${it.last4}" }}")
                 for (detected in detectedCards) {
                     val alreadyExists = existingCards.any { it.last4Digits == detected.last4 }
                     if (!alreadyExists) {
@@ -67,7 +69,9 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
                 var newCount = 0
                 for (email in emails) {
-                    val txn = EmailTransactionParser.parse(email, cardIdByLast4) ?: continue
+                    val txn = EmailTransactionParser.parse(email, cardIdByLast4)
+                    Log.d("CardPulse", "Parsed txn: ${txn?.merchant} ₹${txn?.amount} → card ${txn?.cardId} (email: ${email.subject})")
+                    if (txn == null) continue
                     // Deduplicate by rawEmailId
                     val existing = repository.getTransactionByEmailId(txn.rawEmailId ?: "")
                     if (existing == null) {

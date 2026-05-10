@@ -2,18 +2,8 @@ package com.cardpulse.app.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import java.util.Date
-
-// ─── Type Converters ───────────────────────────────────────────
-class Converters {
-    @TypeConverter
-    fun fromTimestamp(value: Long?): Date? = value?.let { Date(it) }
-
-    @TypeConverter
-    fun dateToTimestamp(date: Date?): Long? = date?.time
-}
 
 // ─── Card ──────────────────────────────────────────────────────
 @Entity(tableName = "cards")
@@ -36,7 +26,6 @@ data class Card(
 
 // ─── Transaction ───────────────────────────────────────────────
 @Entity(tableName = "transactions")
-@TypeConverters(Converters::class)
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val cardId: Int,
@@ -70,7 +59,6 @@ data class SpendRule(
 
 // ─── Lounge Access ─────────────────────────────────────────────
 @Entity(tableName = "lounge_access")
-@TypeConverters(Converters::class)
 data class LoungeAccess(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val cardId: Int,
@@ -84,7 +72,6 @@ data class LoungeAccess(
 
 // ─── Notification Log ──────────────────────────────────────────
 @Entity(tableName = "notification_log")
-@TypeConverters(Converters::class)
 data class NotificationLog(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val cardId: Int,

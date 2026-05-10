@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -90,8 +91,14 @@ fun CardDetailScreen(cardId: Int, onBack: () -> Unit) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                                                    .background(Brush.horizontalGradient(listOf(cardColor.copy(alpha = 0.3f), PulseCard)))
-                        .padding(20.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(cardColor, cardColor.copy(alpha = 0.55f)),
+                                    start = Offset(0f, 0f),
+                                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                                )
+                            )
+                            .padding(20.dp)
                     ) {
                         Column {
                             Text("${card.bankName} ${card.cardName}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = PulseOnSurface)

@@ -164,7 +164,7 @@ fun CardProgressItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape  = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = PulseCard)
+        colors = CardDefaults.cardColors(containerColor = cardColor.copy(alpha = 0.13f))
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
 
@@ -190,7 +190,7 @@ fun CardProgressItem(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(cardColor.copy(alpha = 0.2f))
+                        .background(cardColor.copy(alpha = 0.25f))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(

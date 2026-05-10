@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,6 +25,54 @@ import androidx.compose.ui.unit.sp
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.ui.theme.*
 import java.util.Date
+
+@Composable
+fun CardPreviewWidget(bankName: String, last4: String, cardName: String, colorHex: String) {
+    val cardColor = try { Color(android.graphics.Color.parseColor(colorHex)) } catch (e: Exception) { PulseBlue }
+    val darkerColor = cardColor.copy(
+        red = (cardColor.red * 0.65f).coerceIn(0f, 1f),
+        green = (cardColor.green * 0.65f).coerceIn(0f, 1f),
+        blue = (cardColor.blue * 0.65f).coerceIn(0f, 1f)
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(cardColor, darkerColor)))
+            .padding(24.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp, 28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xFFFFD700).copy(alpha = 0.85f))
+                .align(Alignment.TopStart)
+        )
+        Text(
+            text = bankName.ifBlank { "Bank Name" },
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            modifier = Modifier.align(Alignment.TopEnd)
+        )
+        Text(
+            text = "•••• •••• •••• ${last4.ifBlank { "0000" }}",
+            color = Color.White.copy(alpha = 0.9f),
+            fontWeight = FontWeight.Medium,
+            fontSize = 17.sp,
+            modifier = Modifier.align(Alignment.BottomStart)
+        )
+        Text(
+            text = cardName.ifBlank { "Card Name" },
+            color = Color.White.copy(alpha = 0.75f),
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 4.dp)
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +122,15 @@ fun AddCardScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Spacer(modifier = Modifier.height(4.dp))
+
+            // Live card preview
+            CardPreviewWidget(
+                bankName = bankName,
+                last4 = last4,
+                cardName = cardName,
+                colorHex = selectedColor
+            )
+            Spacer(modifier = Modifier.height(20.dp))
 
             PulseTextField(value = bankName, label = "Bank Name (e.g. HDFC, Axis)",
                 onValueChange = { bankName = it })

@@ -2,7 +2,11 @@ package com.cardpulse.app.data
 
 import android.content.Context
 import androidx.room.*
-import com.cardpulse.app.model.*
+import com.cardpulse.app.model.Card
+import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.model.SpendRule
+import com.cardpulse.app.model.LoungeAccess
+import com.cardpulse.app.model.NotificationLog
 
 // ─── DAOs ──────────────────────────────────────────────────────
 

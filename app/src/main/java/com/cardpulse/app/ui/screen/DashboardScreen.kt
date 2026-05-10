@@ -22,6 +22,7 @@ import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(onCardClick: (Int) -> Unit) {
     // Placeholder cards for UI preview — real data from Room in next batch

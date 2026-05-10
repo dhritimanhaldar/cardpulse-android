@@ -1,6 +1,7 @@
 package com.cardpulse.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -64,7 +65,14 @@ fun CardPulseNavHost(
 
         composable(Screen.AddCard.route) {
             val context = LocalContext.current
-            val dashboardViewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.factory(context))
+            // Use the same ViewModel instance as Dashboard by targeting the parent back stack entry
+            val dashboardEntry = remember(navController) {
+                navController.getBackStackEntry(Screen.Dashboard.route)
+            }
+            val dashboardViewModel: DashboardViewModel = viewModel(
+                viewModelStoreOwner = dashboardEntry,
+                factory = DashboardViewModel.factory(context)
+            )
             AddCardScreen(
                 onSave = { card ->
                     dashboardViewModel.addCard(card)

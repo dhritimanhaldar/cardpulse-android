@@ -26,6 +26,14 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState
 
+    private val _hasAutoSynced = MutableStateFlow(false)
+
+    fun autoSyncOnce() {
+        if (_hasAutoSynced.value) return
+        _hasAutoSynced.value = true
+        syncNow()
+    }
+
     fun syncNow() {
         viewModelScope.launch {
             _syncState.value = SyncState.Syncing

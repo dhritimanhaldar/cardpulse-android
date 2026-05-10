@@ -13,6 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.animation.core.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +46,17 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
     val syncVm: GmailSyncViewModel = viewModel()
     val syncState by syncVm.syncState.collectAsStateWithLifecycle()
 
+    // Auto-sync once on dashboard entry
+    LaunchedEffect(Unit) {
+        syncVm.autoSyncOnce()
+    }
+
+    val rotation by rememberInfiniteTransition(label = "spin").animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing)),
+        label = "rotation"
+    )
+
     Scaffold(
         containerColor = PulseBackground,
         topBar = {
@@ -54,11 +71,15 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
                 },
                 actions = {
                     IconButton(onClick = { syncVm.syncNow() }) {
-                        if (syncState is SyncState.Syncing) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = PulseBlue)
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "Sync Gmail", tint = PulseSubtext)
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Sync Gmail",
+                            tint = PulseSubtext,
+                            modifier = if (syncState is SyncState.Syncing)
+                                Modifier.rotate(rotation)
+                            else
+                                Modifier
+                        )
                     }
                     IconButton(onClick = { }) {
                         Icon(Icons.Filled.Person, contentDescription = "Profile", tint = PulseSubtext)
@@ -108,6 +129,53 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
             } else if (errorMessage != null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(errorMessage!!, color = PulseDanger, fontSize = 13.sp)
+                }
+            } else if (cardsWithProgress.isEmpty()) {
+                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val scale by infiniteTransition.animateFloat(
+                    initialValue = 0.92f, targetValue = 1.08f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(900, easing = EaseInOutSine),
+                        repeatMode = RepeatMode.Reverse
+                    ), label = "scale"
+                )
+                val alpha by infiniteTransition.animateFloat(
+                    initialValue = 0.5f, targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(900, easing = EaseInOutSine),
+                        repeatMode = RepeatMode.Reverse
+                    ), label = "alpha"
+                )
+
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .scale(scale)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(PulseBlue.copy(alpha = alpha * 0.3f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                color = PulseBlue.copy(alpha = alpha),
+                                strokeWidth = 3.dp
+                            )
+                        }
+                        Text(
+                            text = "Scanning your Gmail\nfor cards & transactions…",
+                            color = PulseSubtext,
+                            fontSize = 14.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
                 }
             } else {
                 LazyColumn(

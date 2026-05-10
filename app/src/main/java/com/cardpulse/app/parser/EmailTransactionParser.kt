@@ -22,9 +22,8 @@ object EmailTransactionParser {
         RegexOption.IGNORE_CASE
     )
 
-    // Matches last 4 digits of card
-    private val last4Regex = Regex("""(?:card|a/c|account)\s*(?:no\.?|ending|x+)?\s*[xX*]{0,8}(\d{4})""",
-        RegexOption.IGNORE_CASE)
+    // Delegate to CardDetectionParser for consistency
+    private val last4Regex = Regex("") // Dummy regex as we call CardDetectionParser directly
 
     fun parse(email: RawEmailData, cardIdByLast4: Map<String, Int>): Transaction? {
         val junkSubjects = listOf("view this message in html", "html version", "unsubscribe",
@@ -47,7 +46,7 @@ object EmailTransactionParser {
 
         if (rawMerchant.length < 3 || rawMerchant.matches(Regex("\\d+")) || rawMerchant.lowercase().contains("html")) return null
 
-        val last4 = last4Regex.find(text)?.groupValues?.get(1)
+        val last4 = CardDetectionParser.extractLast4(text)
         val cardId = last4?.let { cardIdByLast4[it] } ?: cardIdByLast4.values.firstOrNull() ?: return null
 
         val date = tryParseDate(email.dateHeader) ?: Date()

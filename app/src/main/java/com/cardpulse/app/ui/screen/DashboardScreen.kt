@@ -21,29 +21,19 @@ import androidx.compose.ui.unit.sp
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.ui.theme.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
+import com.cardpulse.app.viewmodel.DashboardViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(onCardClick: (Int) -> Unit) {
-    // Placeholder cards for UI preview — real data from Room in next batch
-    val sampleCards = listOf(
-        Card(
-            id = 1, bankName = "HDFC", cardName = "Infinia",
-            last4Digits = "1234", cardType = "VISA",
-            cardNetwork = "HDFC Infinia", creditLimit = 800000.0,
-            billingCycleDay = 1, statementDay = 28,
-            dueDateOffset = 20, annualFee = 12500.0,
-            color = "#1A73E8"
-        ),
-        Card(
-            id = 2, bankName = "Axis", cardName = "Magnus",
-            last4Digits = "5678", cardType = "MASTERCARD",
-            cardNetwork = "Axis Magnus", creditLimit = 500000.0,
-            billingCycleDay = 5, statementDay = 4,
-            dueDateOffset = 20, annualFee = 12500.0,
-            color = "#7B1FA2"
-        )
-    )
+fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
+    val context = LocalContext.current
+    val viewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.factory(context))
+    val cardsWithProgress by viewModel.cardsWithProgress.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     Scaffold(
         containerColor = PulseBackground,
@@ -70,7 +60,7 @@ fun DashboardScreen(onCardClick: (Int) -> Unit) {
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick          = { },
+                onClick          = onAddCard,
                 containerColor   = PulseBlue,
                 contentColor     = Color.White,
                 shape            = RoundedCornerShape(16.dp)
@@ -79,6 +69,18 @@ fun DashboardScreen(onCardClick: (Int) -> Unit) {
             }
         }
     ) { padding ->
+        if (isLoading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = PulseBlue)
+            }
+            return@Scaffold
+        }
+        errorMessage?.let {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text(it, color = PulseDanger, fontSize = 13.sp)
+            }
+            return@Scaffold
+        }
         LazyColumn(
             modifier            = Modifier
                 .fillMaxSize()
@@ -89,16 +91,19 @@ fun DashboardScreen(onCardClick: (Int) -> Unit) {
         ) {
             // Summary header
             item {
-                SummaryHeader(totalCards = sampleCards.size, totalSpent = 42500.0)
+                SummaryHeader(
+                    totalCards = cardsWithProgress.size,
+                    totalSpent = cardsWithProgress.sumOf { it.totalSpentThisCycle }
+                )
             }
 
             // Card list
-            items(sampleCards) { card ->
+            items(cardsWithProgress) { cwp ->
                 CardProgressItem(
-                    card       = card,
-                    spentAmount = if (card.id == 1) 85000.0 else 32000.0,
-                    targetAmount = 150000.0,
-                    onClick    = { onCardClick(card.id) }
+                    card = cwp.card,
+                    spentAmount = cwp.totalSpentThisCycle,
+                    targetAmount = cwp.spendRules.firstOrNull()?.targetAmount ?: 100000.0,
+                    onClick = { onCardClick(cwp.card.id) }
                 )
             }
         }

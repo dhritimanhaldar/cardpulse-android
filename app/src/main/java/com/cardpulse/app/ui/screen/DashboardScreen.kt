@@ -13,6 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import android.Manifest
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -49,13 +53,21 @@ fun DashboardScreen(onCardClick: (Int) -> Unit, onAddCard: () -> Unit) {
     val syncVm: GmailSyncViewModel = viewModel()
     val syncState by syncVm.syncState.collectAsStateWithLifecycle()
 
-    val smsPermissionState = rememberPermissionState(android.Manifest.permission.READ_SMS)
+    val smsSendPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val granted = perms[Manifest.permission.RECEIVE_SMS] == true
+        Log.d("DashboardScreen", "SMS permission granted: $granted")
+    }
 
     // Auto-sync once on dashboard entry
     LaunchedEffect(Unit) {
-        if (!smsPermissionState.status.isGranted) {
-            smsPermissionState.launchPermissionRequest()
-        }
+        smsSendPermissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.READ_SMS
+            )
+        )
         syncVm.autoSyncOnce()
     }
 

@@ -1,5 +1,6 @@
 package com.cardpulse.app.parser
 
+import android.util.Log
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
@@ -11,86 +12,78 @@ data class RawSmsData(
     val timestamp: Long
 )
 
+data class SmsTransactionResult(
+    val amount: Double,
+    val merchant: String,
+    val last4Digits: String?,
+    val bankName: String?,
+    val isCredit: Boolean,
+    val category: String = "General"
+)
+
 object SmsTransactionParser {
 
-    // Indian bank SMS sender IDs
-    private val bankSenderPatterns = mapOf(
-        "hdfcbk" to "HDFC", "hdfcbank" to "HDFC",
-        "axisbk" to "Axis", "axisbank" to "Axis",
-        "icicibk" to "ICICI", "icicibank" to "ICICI",
-        "sbicrd" to "SBI", "sbicard" to "SBI", "sbi" to "SBI",
-        "kotakbk" to "Kotak", "kotak" to "Kotak",
-        "idfcfb" to "IDFC First", "idfcbank" to "IDFC First",
-        "yesbank" to "Yes Bank", "yesbk" to "Yes Bank",
-        "indbnk" to "IndusInd", "indusind" to "IndusInd",
-        "rblbk" to "RBL", "rblbank" to "RBL",
-        "aubank" to "AU Bank", "aubkcc" to "AU Bank",
-        "amexin" to "Amex", "scbnk" to "Standard Chartered"
+    private val TAG = "SmsTransactionParser"
+
+    // Debit patterns: "debited", "spent", "withdrawn", "payment of"
+    private val DEBIT_PATTERNS = listOf(
+        Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,60}(?:debited|spent|used at|payment of)""", RegexOption.IGNORE_CASE),
+        Regex("""(?:debited|spent|payment of)\s+(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE),
+        Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s+(?:debited|spent)""", RegexOption.IGNORE_CASE)
     )
 
-    private val amountRegex = Regex(
-        """(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)""",
-        RegexOption.IGNORE_CASE
+    // Credit patterns: "credited", "refund", "cashback", "payment received"
+    private val CREDIT_PATTERNS = listOf(
+        Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,60}(?:credited|refund|cashback|payment received)""", RegexOption.IGNORE_CASE),
+        Regex("""(?:credited|refund|cashback)\s+(?:with\s+)?(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
     )
 
-    private val last4Regex = Regex(
-        """(?:card|a/c|ac|ending|xx|XX|\*{2,})\s*(?:no\.?\s*)?(?:xx|XX|\*+)?(\d{4})\b""",
-        RegexOption.IGNORE_CASE
+    private val LAST4_PATTERN = Regex("""(?:card|a/c|acct|account)[\s\S]{0,10}?(\d{4})\b""", RegexOption.IGNORE_CASE)
+
+    private val MERCHANT_PATTERNS = listOf(
+        Regex("""(?:at|to|towards|for)\s+([A-Za-z0-9 &'./-]{3,40})""", RegexOption.IGNORE_CASE),
+        Regex("""(?:purchase at|txn at|used at)\s+([A-Za-z0-9 &'./-]{3,40})""", RegexOption.IGNORE_CASE)
     )
 
-    private val merchantRegex = Regex(
-        """(?:at|to|for|with|@)\s+([A-Za-z0-9 &'.\-]{3,35})(?:\s+on|\s+via|\s+ref|\.|\n|${'$'})""",
-        RegexOption.IGNORE_CASE
-    )
-
-    private val creditKeywords = Regex(
-        "credited|refund|cashback|reversal|payment received|received|added",
-        RegexOption.IGNORE_CASE
-    )
-
-    private val paymentKeywords = Regex(
-        "payment|bill pay|due paid|minimum due|autopay|paid towards",
-        RegexOption.IGNORE_CASE
+    // Known bank SMS sender addresses
+    private val BANK_SENDER_MAP = mapOf(
+        "HDFCBK" to "HDFC Bank",
+        "SBIINB" to "SBI",
+        "ICICIB" to "ICICI Bank",
+        "AXISBK" to "Axis Bank",
+        "KOTAKB" to "Kotak Bank",
+        "IDFCBK" to "IDFC First Bank",
+        "SCBANK" to "Standard Chartered",
+        "AMEXIN" to "American Express",
+        "INDUSB" to "IndusInd Bank",
+        "YESBNK" to "Yes Bank",
+        "RBLBNK" to "RBL Bank",
+        "BOIIND" to "Bank of India",
+        "PNBSMS" to "Punjab National Bank",
+        "CANBNK" to "Canara Bank",
+        "CENTBK" to "Central Bank"
     )
 
     fun isBankSms(sender: String): Boolean {
         val lower = sender.lowercase().replace("-", "")
-        return bankSenderPatterns.keys.any { lower.contains(it) }
-    }
-
-    fun extractBankName(sender: String): String? {
-        val lower = sender.lowercase().replace("-", "")
-        for ((key, value) in bankSenderPatterns) {
-            if (lower.contains(key)) return value
-        }
-        return null
+        return BANK_SENDER_MAP.keys.any { lower.contains(it) }
     }
 
     fun parse(sms: RawSmsData, cardIdByLast4: Map<String, Int>): Transaction? {
-        val body = sms.body
-        val amount = amountRegex.find(body)
-            ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
-        if (amount <= 0 || amount > 10_000_000) return null
+        val result = parse(sms.body, sms.sender) ?: return null
 
-        val last4 = last4Regex.find(body)?.groupValues?.get(1)
-        val cardId = last4?.let { cardIdByLast4[it] }
+        val cardId = result.last4Digits?.let { cardIdByLast4[it] }
             ?: cardIdByLast4.values.firstOrNull()
             ?: return null
-
-        val isPayment = paymentKeywords.containsMatchIn(body)
-        val isCredit = isPayment || creditKeywords.containsMatchIn(body)
-
-        val merchant = merchantRegex.find(body)?.groupValues?.get(1)?.trim()
-            ?: if (isPayment) "Card Payment" else "Unknown"
 
         return Transaction(
             id = 0,
             cardId = cardId,
-            amount = amount,
-            merchant = merchant.trim(),
+            amount = result.amount,
+            merchant = result.merchant,
             date = Date(sms.timestamp),
-            category = if (isPayment) "Payment" else suggestCategory(merchant),
-            isCredit = isCredit,
+            category = result.category,
+            isCredit = result.isCredit,
             source = TransactionSource.SMS,
             status = TransactionStatus.CONFIRMED,
             rawEmailId = null,
@@ -99,17 +92,78 @@ object SmsTransactionParser {
         )
     }
 
-    private fun suggestCategory(merchant: String): String {
+    fun parse(smsBody: String, sender: String): SmsTransactionResult? {
+        val body = smsBody.trim()
+
+        // Identify bank
+        val bankName = BANK_SENDER_MAP.entries.firstOrNull { (key, _) ->
+            sender.uppercase().contains(key)
+        }?.value
+
+        // Try debit
+        var amount: Double? = null
+        var isCredit = false
+
+        for (pattern in DEBIT_PATTERNS) {
+            val match = pattern.find(body)
+            if (match != null) {
+                amount = match.groupValues[1].replace(",", "").toDoubleOrNull()
+                if (amount != null) { isCredit = false; break }
+            }
+        }
+
+        // Try credit if not found as debit
+        if (amount == null) {
+            for (pattern in CREDIT_PATTERNS) {
+                val match = pattern.find(body)
+                if (match != null) {
+                    amount = match.groupValues[1].replace(",", "").toDoubleOrNull()
+                    if (amount != null) { isCredit = true; break }
+                }
+            }
+        }
+
+        if (amount == null || amount <= 0.0) {
+            Log.d(TAG, "No amount found in SMS from $sender")
+            return null
+        }
+
+        // Extract last 4
+        val last4 = LAST4_PATTERN.find(body)?.groupValues?.get(1)
+
+        // Extract merchant
+        var merchant = "Unknown"
+        for (pattern in MERCHANT_PATTERNS) {
+            val match = pattern.find(body)
+            if (match != null) {
+                val raw = match.groupValues[1].trim().trimEnd('.', ',', ' ')
+                if (raw.length >= 3) { merchant = raw; break }
+            }
+        }
+
+        Log.d(TAG, "Parsed SMS: amount=$amount, merchant=$merchant, last4=$last4, bank=$bankName, credit=$isCredit")
+
+        return SmsTransactionResult(
+            amount = amount,
+            merchant = merchant,
+            last4Digits = last4,
+            bankName = bankName,
+            isCredit = isCredit,
+            category = inferCategory(merchant)
+        )
+    }
+
+    private fun inferCategory(merchant: String): String {
         val m = merchant.lowercase()
         return when {
-            m.contains(Regex("swiggy|zomato|domino|pizza|restaurant|cafe|blinkit|zepto")) -> "Food & Dining"
-            m.contains(Regex("amazon|flipkart|myntra|meesho|ajio|nykaa|bigbasket")) -> "Shopping"
-            m.contains(Regex("uber|ola|rapido|irctc|makemytrip|goibibo|air|metro")) -> "Travel"
-            m.contains(Regex("netflix|spotify|prime|hotstar|zee5|jio")) -> "Entertainment"
-            m.contains(Regex("apollo|pharmeasy|hospital|clinic|medplus")) -> "Healthcare"
-            m.contains(Regex("electricity|gas|water|broadband|airtel|jio|bsnl|recharge")) -> "Utilities"
-            m.contains(Regex("petrol|diesel|hp|ioc|bpcl|fuel")) -> "Fuel"
-            else -> "Others"
+            m.contains("swiggy") || m.contains("zomato") || m.contains("food") -> "Food & Dining"
+            m.contains("amazon") || m.contains("flipkart") || m.contains("myntra") -> "Shopping"
+            m.contains("uber") || m.contains("ola") || m.contains("rapido") -> "Transport"
+            m.contains("netflix") || m.contains("hotstar") || m.contains("spotify") -> "Entertainment"
+            m.contains("hospital") || m.contains("pharmacy") || m.contains("apollo") -> "Health"
+            m.contains("fuel") || m.contains("petrol") || m.contains("bpcl") || m.contains("iocl") -> "Fuel"
+            m.contains("irctc") || m.contains("makemytrip") || m.contains("goibibo") -> "Travel"
+            else -> "General"
         }
     }
 }

@@ -6,6 +6,7 @@ import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.model.Transaction
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.generationConfig
+import org.json.JSONArray
 import org.json.JSONObject
 
 class GeminiService {
@@ -178,7 +179,95 @@ Body: ${bodySnippet.take(800)}
         isTransaction = false, amount = null, merchant = null,
         last4 = null, bankName = null, isCredit = false, category = null
     )
+
+    // ─── Gemini milestone fetch ───────────────────────────────
+    suspend fun fetchCardMilestones(bankName: String, cardName: String): List<GeminiMilestone> {
+        val prompt = """
+You are an expert on Indian credit card benefits.
+
+List all spend-based milestone rewards for the "$bankName $cardName" credit card.
+These are rewards unlocked by spending a certain amount within a billing cycle or year.
+
+Examples: "Spend ₹1,50,000 in a quarter → 1 complimentary airport lounge access"
+or "Spend ₹3,00,000 in a year → annual fee waiver"
+
+Respond ONLY as a JSON array, no other text:
+[
+  {
+    "ruleName": "short label e.g. Quarterly Lounge",
+    "targetAmount": 150000,
+    "reward": "1 Complimentary Airport Lounge Access",
+    "rewardType": "LOUNGE",
+    "cycleType": "QUARTERLY"
+  }
+]
+
+rewardType must be one of: LOUNGE, FEE_WAIVER, CASHBACK, POINTS, VOUCHER, OTHER
+cycleType must be one of: MONTHLY, QUARTERLY, ANNUAL, LIFETIME
+
+If no spend-based milestones exist, return an empty array [].
+Card: $bankName $cardName
+""".trimIndent()
+
+        return try {
+            val raw = model.generateContent(prompt).text ?: return emptyList()
+            val json = raw.trim()
+                .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.getJSONObject(i)
+                GeminiMilestone(
+                    ruleName = obj.optString("ruleName").ifBlank { return@mapNotNull null },
+                    targetAmount = obj.optDouble("targetAmount").takeIf { !it.isNaN() && it > 0 }
+                        ?: return@mapNotNull null,
+                    reward = obj.optString("reward").ifBlank { "Reward" },
+                    rewardType = obj.optString("rewardType", "OTHER"),
+                    cycleType = obj.optString("cycleType", "ANNUAL")
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("GeminiService", "fetchCardMilestones error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun getMilestonesForCard(cardName: String, bankName: String): String {
+        val prompt = """
+        You are a credit card rewards expert for Indian credit cards.
+        For the "$cardName" card by "$bankName", list all spend-based milestone rewards.
+        Return ONLY a valid JSON array with no markdown, no explanation.
+        Each object must have:
+          - ruleName: short name (e.g. "Welcome Bonus", "Quarterly Milestone")
+          - targetAmount: spend amount in INR needed to unlock (number)
+          - reward: what the user gets (e.g. "5000 bonus points", "₹500 cashback")
+          - rewardType: one of "points", "cashback", "voucher", "waiver", "other"
+          - cycleType: one of "monthly", "quarterly", "annual", "one-time"
+          - resetDay: day of month the cycle resets (number, default 1)
+
+        Example:
+        [
+          {"ruleName":"Monthly Milestone","targetAmount":50000,"reward":"1000 bonus points","rewardType":"points","cycleType":"monthly","resetDay":1},
+          {"ruleName":"Annual Fee Waiver","targetAmount":200000,"reward":"Annual fee waived","rewardType":"waiver","cycleType":"annual","resetDay":1}
+        ]
+    """.trimIndent()
+
+        return try {
+            val response = model.generateContent(prompt)
+            response.text ?: "[]"
+        } catch (e: Exception) {
+            Log.e("GeminiService", "getMilestonesForCard failed: ${e.message}")
+            "[]"
+        }
+    }
 }
+
+data class GeminiMilestone(
+    val ruleName: String,
+    val targetAmount: Double,
+    val reward: String,
+    val rewardType: String,
+    val cycleType: String
+)
 
 data class FraudAnalysis(
     val verdict: String,        // SAFE / SUSPICIOUS / UNKNOWN

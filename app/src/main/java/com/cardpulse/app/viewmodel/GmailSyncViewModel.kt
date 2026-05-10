@@ -66,7 +66,8 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                                 color = defaultColorForBank(detected.bankName),
                                 creditLimit = 0.0, billingCycleDay = 1,
                                 statementDay = 1, dueDateOffset = 20,
-                                isActive = true, annualFee = 0.0, addedOn = java.util.Date()
+                                isActive = true, annualFee = 0.0,
+                                addedOn = java.util.Date()
                             )
                         )
                     }

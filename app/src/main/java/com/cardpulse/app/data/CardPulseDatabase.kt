@@ -18,6 +18,9 @@ interface CardDao {
     @Query("SELECT * FROM cards WHERE id = :cardId")
     suspend fun getCardById(cardId: Int): Card?
 
+    @Query("SELECT * FROM cards WHERE isActive = 1")
+    suspend fun getAllCardsSync(): List<Card>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCard(card: Card): Long
 
@@ -60,6 +63,9 @@ interface TransactionDao {
     // Only sum debits (actual spend), exclude credits/payments/refunds
     @Query("SELECT SUM(amount) FROM transactions WHERE cardId = :cardId AND date >= :fromDate AND isCredit = 0 AND category != 'Payment'")
     suspend fun getTotalSpentSince(cardId: Int, fromDate: Long): Double?
+
+    @Query("SELECT * FROM transactions WHERE cardId = :cardId AND isCredit = 0 AND status = 'CONFIRMED'")
+    suspend fun getConfirmedDebitsForCard(cardId: Int): List<Transaction>
 }
 
 @Dao
@@ -75,6 +81,9 @@ interface SpendRuleDao {
 
     @Query("DELETE FROM spend_rules WHERE cardId = :cardId")
     suspend fun deleteRulesForCard(cardId: Int)
+
+    @Query("UPDATE spend_rules SET currentAmount = :amount, isAchieved = :achieved WHERE id = :ruleId")
+    suspend fun updateProgress(ruleId: Int, amount: Double, achieved: Boolean)
 }
 
 @Dao

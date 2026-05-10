@@ -48,6 +48,15 @@ class CardRepository(context: Context) {
     suspend fun insertRule(rule: SpendRule): Long = spendRuleDao.insertRule(rule)
     suspend fun updateRule(rule: SpendRule) = spendRuleDao.updateRule(rule)
 
+    suspend fun replaceSpendRules(cardId: Int, rules: List<SpendRule>) {
+        spendRuleDao.deleteRulesForCard(cardId)
+        rules.forEach { spendRuleDao.insertRule(it) }
+    }
+
+    suspend fun updateSpendRuleProgress(ruleId: Int, newAmount: Double, isAchieved: Boolean) {
+        spendRuleDao.updateProgress(ruleId, newAmount, isAchieved)
+    }
+
     // ─── Lounge ────────────────────────────────────────────────
     suspend fun getLoungeForCard(cardId: Int): LoungeAccess? =
         loungeDao.getLoungeForCard(cardId)
@@ -69,6 +78,21 @@ class CardRepository(context: Context) {
 
     suspend fun getAllCardsWithProgress(): List<CardWithProgress> =
         getAllCards().mapNotNull { getCardWithProgress(it.id) }
+
+    suspend fun getAllCardsSync(): List<Card> {
+        return cardDao.getAllCardsSync()
+    }
+
+    suspend fun recalculateSpendProgress(cardId: Int) {
+        val rules = spendRuleDao.getRulesForCard(cardId)
+        val allTxns = transactionDao.getConfirmedDebitsForCard(cardId)
+        val cycleSpend = allTxns.sumOf { it.amount }
+
+        rules.forEach { rule ->
+            val achieved = cycleSpend >= rule.targetAmount
+            spendRuleDao.updateProgress(rule.id, cycleSpend.coerceAtMost(rule.targetAmount), achieved)
+        }
+    }
 
     // ─── Billing cycle helper ──────────────────────────────────
     private fun getBillingCycleStart(billingCycleDay: Int): Date {

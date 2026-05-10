@@ -30,7 +30,9 @@ class GmailFetcher(private val context: Context) {
                 val query = "(from:axisbank.com OR from:hdfcbank.com OR from:icicibank.com OR from:sbicard.com OR from:aubank.in OR from:idfcfirstbank.com OR from:yesbank.in OR from:kotak.com OR from:indusind.com OR from:rblbank.com OR from:amex.com OR from:sc.com) after:$afterDate"
                 val ids = listMessageIds(token, query)
                 ids.take(AppConfig.GMAIL_FETCH_LIMIT).mapNotNull { id ->
-                    fetchEmailBody(token, id)
+                    fetchEmailBody(token, id)?.also { email ->
+                        Log.d("GmailFetcher", "Email from: ${email.from} | Subject: ${email.subject}")
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("GmailFetcher", "Fetch error: ${e.message}")

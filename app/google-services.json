@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "121179538388",
+    "project_id": "cardpulse-all",
+    "storage_bucket": "cardpulse-all.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:121179538388:android:3d1a90fafa998f8c220c41",
+        "android_client_info": {
+          "package_name": "com.cardpulse.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "121179538388-j93pl9gabut5t364hvfd427skapjb5kn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cardpulse.app",
+            "certificate_hash": "61be7be43ad94a3bce3499afb297511dd4570ac3"
+          }
+        },
+        {
+          "client_id": "121179538388-vpdcj6rvmfqqgrmntfpsoj2ebo685evi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXnjkKt2LvQSIIhq6LQolQ5E4BOJfWlZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "121179538388-vpdcj6rvmfqqgrmntfpsoj2ebo685evi.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

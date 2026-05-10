@@ -84,19 +84,39 @@ class GmailFetcher(private val context: Context) {
 
     private fun extractBody(json: JSONObject): String {
         val payload = json.optJSONObject("payload") ?: return ""
-        // Try direct body first
         val directBody = payload.optJSONObject("body")?.optString("data")
-        if (!directBody.isNullOrEmpty()) return decodeBase64(directBody)
-        // Walk parts
+        if (!directBody.isNullOrEmpty()) return stripHtml(decodeBase64(directBody))
         val parts = payload.optJSONArray("parts") ?: return ""
         for (i in 0 until parts.length()) {
             val part = parts.getJSONObject(i)
             if (part.optString("mimeType") == "text/plain") {
                 val data = part.optJSONObject("body")?.optString("data")
-                if (!data.isNullOrEmpty()) return decodeBase64(data)
+                if (!data.isNullOrEmpty()) return stripHtml(decodeBase64(data))
+            }
+        }
+        // Fallback: try text/html part and strip tags
+        for (i in 0 until parts.length()) {
+            val part = parts.getJSONObject(i)
+            if (part.optString("mimeType") == "text/html") {
+                val data = part.optJSONObject("body")?.optString("data")
+                if (!data.isNullOrEmpty()) return stripHtml(decodeBase64(data))
             }
         }
         return ""
+    }
+
+    private fun stripHtml(html: String): String {
+        return html
+            .replace(Regex("<style[^>]*>[\\s\\S]*?</style>"), " ")
+            .replace(Regex("<script[^>]*>[\\s\\S]*?</script>"), " ")
+            .replace(Regex("<[^>]+>"), " ")
+            .replace(Regex("&nbsp;"), " ")
+            .replace(Regex("&amp;"), "&")
+            .replace(Regex("&lt;"), "<")
+            .replace(Regex("&gt;"), ">")
+            .replace(Regex("&rsquo;|&lsquo;|&#39;"), "'")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
     }
 
     private fun decodeBase64(encoded: String): String {

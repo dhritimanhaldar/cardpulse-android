@@ -26,10 +26,24 @@ object EmailTransactionParser {
     private val last4Regex = Regex("") // Dummy regex as we call CardDetectionParser directly
 
     fun parse(email: RawEmailData, cardIdByLast4: Map<String, Int>): Transaction? {
-        val junkSubjects = listOf("view this message in html", "html version", "unsubscribe",
-            "confirm your", "verify your", "welcome to", "statement ready", "ensure access")
-        if (junkSubjects.any { email.subject.lowercase().contains(it) }) return null
-        if (email.subject.lowercase().contains("view this message")) return null
+        // Always process known transaction alert subjects regardless of other filters
+        val isDefinitelyTransaction = email.subject.lowercase().let {
+            it.contains("transaction alert") || it.contains("debit alert") ||
+                    it.contains("credit alert") || it.contains("payment alert") ||
+                    it.contains("amount debited") || it.contains("has been debited")
+        }
+
+        // Only skip junk if it's NOT a definite transaction email
+        if (!isDefinitelyTransaction) {
+            val junkSubjects = listOf("view this message in html", "html version", "unsubscribe",
+                "confirm your", "verify your", "welcome to", "ensure access",
+                "mother's day", "summer travel", "chapter", "credit limit", "imposters",
+                "easy emi", "gift card", "forex card", "personal loan", "higher education",
+                "happy", "meet the", "zero markup", "delivering strong", "think before",
+                "otp for", "one time password", "downtime notification")
+            if (junkSubjects.any { email.subject.lowercase().contains(it) }) return null
+            if (email.subject.lowercase().contains("view this message")) return null
+        }
 
         val text = "${email.subject} ${email.body}"
 

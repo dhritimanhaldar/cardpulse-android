@@ -12,8 +12,8 @@ object AppConfig {
         "121179538388-vpdcj6rvmfqqgrmntfpsoj2ebo685evi.apps.googleusercontent.com"
 
     const val GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
-    const val GMAIL_FETCH_LIMIT = 50
-    const val GMAIL_LOOKBACK_DAYS = 30L
+    const val GMAIL_FETCH_LIMIT = 100
+    const val GMAIL_LOOKBACK_DAYS = 90L
 
     const val TRANSACTION_DUPLICATE_WINDOW_MINUTES = 10L
     const val FRAUD_LARGE_AMOUNT_THRESHOLD = 10000.0

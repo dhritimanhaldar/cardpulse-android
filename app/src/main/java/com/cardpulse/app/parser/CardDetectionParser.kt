@@ -46,7 +46,9 @@ object CardDetectionParser {
         "federal bank" to "Federal Bank",
         "federalbank" to "Federal Bank",
         "onecard" to "OneCard",
-        "one card" to "OneCard"
+        "one card" to "OneCard",
+        "paytm sbi" to "SBI",
+        "au bank credit card" to "AU Bank"
     )
 
     // Broad patterns for last 4 digits — Indian bank email formats
@@ -136,7 +138,12 @@ object CardDetectionParser {
             "hsbc" to "HSBC",
             "federalbank" to "Federal Bank",
             "onecard" to "OneCard",
-            "bobfinancial" to "Bank of Baroda"
+            "bobfinancial" to "Bank of Baroda",
+            "au bank credit card" to "AU Bank",
+            "au credit card" to "AU Bank",
+            "sbi card transaction" to "SBI",
+            "paytm sbi" to "SBI",
+            "idfc first bank" to "IDFC First"
         )
         val fromLower = from.lowercase()
         for ((key, value) in domainBankMap) {

@@ -27,7 +27,12 @@ class GmailFetcher(private val context: Context) {
                 val token = GoogleAuthUtil.getToken(context, account.account!!, scope)
                 val lookbackMs = AppConfig.GMAIL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000L
                 val afterDate = (System.currentTimeMillis() - lookbackMs) / 1000
-                val query = "(from:axisbank.com OR from:hdfcbank.com OR from:icicibank.com OR from:sbicard.com OR from:aubank.in OR from:idfcfirstbank.com OR from:yesbank.in OR from:kotak.com OR from:indusind.com OR from:rblbank.com OR from:amex.com OR from:sc.com) after:$afterDate"
+                val query = buildString {
+                    append("(")
+                    // Transaction-specific subject terms
+                    append("subject:(\"transaction alert\" OR \"debit alert\" OR \"credit alert\" OR \"payment alert\" OR \"amount debited\" OR \"has been debited\" OR \"has been credited\" OR \"spent on\" OR \"purchase of\" OR \"payment of\" OR \"transaction on\")")
+                    append(") after:$afterDate")
+                }
                 val ids = listMessageIds(token, query)
                 ids.take(AppConfig.GMAIL_FETCH_LIMIT).mapNotNull { id ->
                     fetchEmailBody(token, id)?.also { email ->

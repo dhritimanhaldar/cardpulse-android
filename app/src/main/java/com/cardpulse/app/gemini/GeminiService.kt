@@ -1,10 +1,12 @@
 package com.cardpulse.app.gemini
 
+import android.util.Log
 import com.cardpulse.app.config.AppConfig
 import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.model.Transaction
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.generationConfig
+import org.json.JSONObject
 
 class GeminiService {
 
@@ -122,10 +124,74 @@ class GeminiService {
         }
         return FraudAnalysis(verdict, reason, confidence)
     }
+
+    // ─── Gemini parse email transaction ────────────────────────
+    suspend fun parseEmailTransaction(
+        subject: String,
+        from: String,
+        bodySnippet: String  // first 800 chars of stripped body
+    ): GeminiTransactionResult {
+        val prompt = """
+You are a financial email parser for Indian bank transaction alerts.
+
+Analyze this email and extract transaction details. Respond ONLY in this exact JSON format with no other text:
+{
+  "isTransaction": true/false,
+  "amount": <number or null>,
+  "merchant": "<merchant name or null>",
+  "last4": "<last 4 digits of card or null>",
+  "bankName": "<bank name or null>",
+  "isCredit": true/false,
+  "category": "<one of: Food & Dining, Shopping, Travel, Entertainment, Healthcare, Utilities, Fuel, Finance, Others>"
+}
+
+Set isTransaction=false if this is a promotional, OTP, or non-transaction email.
+
+Email:
+From: $from
+Subject: $subject
+Body: ${bodySnippet.take(800)}
+""".trimIndent()
+
+        return try {
+            val response = model.generateContent(prompt).text ?: return emptyResult()
+            val json = JSONObject(
+                response.trim()
+                    .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+            )
+            GeminiTransactionResult(
+                isTransaction = json.optBoolean("isTransaction", false),
+                amount = json.optDouble("amount").takeIf { !it.isNaN() },
+                merchant = json.optString("merchant").takeIf { it != "null" && it.isNotBlank() },
+                last4 = json.optString("last4").takeIf { it != "null" && it.length == 4 },
+                bankName = json.optString("bankName").takeIf { it != "null" && it.isNotBlank() },
+                isCredit = json.optBoolean("isCredit", false),
+                category = json.optString("category").takeIf { it != "null" && it.isNotBlank() }
+            )
+        } catch (e: Exception) {
+            Log.e("GeminiService", "parseEmailTransaction error: ${e.message}")
+            emptyResult()
+        }
+    }
+
+    private fun emptyResult() = GeminiTransactionResult(
+        isTransaction = false, amount = null, merchant = null,
+        last4 = null, bankName = null, isCredit = false, category = null
+    )
 }
 
 data class FraudAnalysis(
     val verdict: String,        // SAFE / SUSPICIOUS / UNKNOWN
     val reason: String,
     val confidence: String      // HIGH / MEDIUM / LOW
+)
+
+data class GeminiTransactionResult(
+    val amount: Double?,
+    val merchant: String?,
+    val last4: String?,
+    val bankName: String?,
+    val isCredit: Boolean,
+    val category: String?,
+    val isTransaction: Boolean  // false if email is not a transaction at all
 )

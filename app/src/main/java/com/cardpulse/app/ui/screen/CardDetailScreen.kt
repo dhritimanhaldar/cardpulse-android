@@ -213,7 +213,19 @@ fun TransactionItem(txn: Transaction, onConfirm: () -> Unit) {
                     Text(txn.merchant, fontWeight = FontWeight.Medium, color = PulseOnSurface, fontSize = 14.sp)
                     Text("${txn.category}  •  ${dateFormat.format(txn.date)}  •  ${txn.source}", fontSize = 11.sp, color = PulseSubtext)
                 }
-                Text("₹${"%,.0f".format(txn.amount)}", fontWeight = FontWeight.Bold, color = PulseOnSurface, fontSize = 15.sp)
+                val amountColor = when {
+                    txn.category == "Payment" -> Color(0xFF4CAF50)      // green — bill payment
+                    txn.isCredit -> Color(0xFF4CAF50)                   // green — refund/cashback
+                    else -> Color(0xFFE53935)                           // red — money spent
+                }
+                val amountPrefix = if (txn.isCredit) "+ ₹" else "- ₹"
+
+                Text(
+                    text = "$amountPrefix${ "%,.0f".format(txn.amount) }",
+                    fontWeight = FontWeight.Bold,
+                    color = amountColor,
+                    fontSize = 15.sp
+                )
             }
             if (txn.isFlagged && txn.status != TransactionStatus.CONFIRMED) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

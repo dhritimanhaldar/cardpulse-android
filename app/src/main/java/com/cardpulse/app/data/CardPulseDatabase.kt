@@ -57,7 +57,8 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE rawEmailId = :emailId LIMIT 1")
     suspend fun getTransactionByEmailId(emailId: String): Transaction?
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE cardId = :cardId AND date >= :fromDate")
+    // Only sum debits (actual spend), exclude credits/payments/refunds
+    @Query("SELECT SUM(amount) FROM transactions WHERE cardId = :cardId AND date >= :fromDate AND isCredit = 0 AND category != 'Payment'")
     suspend fun getTotalSpentSince(cardId: Int, fromDate: Long): Double?
 }
 

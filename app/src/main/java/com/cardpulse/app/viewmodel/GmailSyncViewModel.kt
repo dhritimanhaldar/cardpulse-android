@@ -4,8 +4,13 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cardpulse.app.config.AppConfig
 import com.cardpulse.app.data.CardRepository
 import com.cardpulse.app.data.GmailFetcher
+import com.cardpulse.app.gemini.GeminiService
+import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.model.TransactionSource
+import com.cardpulse.app.model.TransactionStatus
 import com.cardpulse.app.parser.CardDetectionParser
 import com.cardpulse.app.parser.EmailTransactionParser
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +28,7 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val repository = CardRepository(application)
     private val gmailFetcher = GmailFetcher(application)
+    private val geminiService = GeminiService()
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState
@@ -65,16 +71,74 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 // Match transactions to correct card by last 4
                 val allCards = repository.getAllCards()
                 if (allCards.isEmpty()) { _syncState.value = SyncState.Done(0); return@launch }
-                val cardIdByLast4 = allCards.associate { it.last4Digits to it.id }
+                var cardIdByLast4 = allCards.associate { it.last4Digits to it.id }
 
                 var newCount = 0
+                var geminiCallCount = 0
                 for (email in emails) {
-                    val txn = EmailTransactionParser.parse(email, cardIdByLast4)
-                    Log.d("CardPulse", "Parsed txn: ${txn?.merchant} ₹${txn?.amount} → card ${txn?.cardId} (email: ${email.subject})")
-                    if (txn == null) continue
-                    // Deduplicate by rawEmailId
-                    val existing = repository.getTransactionByEmailId(txn.rawEmailId ?: "")
-                    if (existing == null) {
+                    if (repository.getTransactionByEmailId(email.messageId) != null) continue // already saved
+
+                    // Layer 1: fast regex parse
+                    var txn = EmailTransactionParser.parse(email, cardIdByLast4)
+
+                    // Layer 2: Gemini fallback for emails regex couldn't parse
+                    if (txn == null && geminiCallCount < AppConfig.GEMINI_EMAIL_PARSE_LIMIT) {
+                        geminiCallCount++
+                        val geminiResult = geminiService.parseEmailTransaction(
+                            subject = email.subject,
+                            from = email.from,
+                            bodySnippet = email.body.take(800)
+                        )
+                        if (geminiResult.isTransaction && geminiResult.amount != null) {
+                            // Try to match card — use Gemini's last4 first, then fallback
+                            val cardId = geminiResult.last4?.let { cardIdByLast4[it] }
+                                ?: cardIdByLast4.values.firstOrNull()
+                                ?: continue
+
+                            // Auto-create card if Gemini detected a new bank+last4 combo
+                            if (geminiResult.last4 != null && geminiResult.bankName != null
+                                && !cardIdByLast4.containsKey(geminiResult.last4)
+                            ) {
+                                val newCardId = repository.insertCard(
+                                    com.cardpulse.app.model.Card(
+                                        id = 0,
+                                        bankName = geminiResult.bankName,
+                                        cardName = "${geminiResult.bankName} Card",
+                                        last4Digits = geminiResult.last4,
+                                        cardType = "Credit Card",
+                                        cardNetwork = geminiResult.bankName,
+                                        color = defaultColorForBank(geminiResult.bankName),
+                                        creditLimit = 0.0, billingCycleDay = 1,
+                                        statementDay = 1, dueDateOffset = 20,
+                                        isActive = true, annualFee = 0.0,
+                                        addedOn = java.util.Date()
+                                    )
+                                )
+                                cardIdByLast4 = cardIdByLast4 + (geminiResult.last4 to newCardId.toInt())
+                            }
+
+                            txn = Transaction(
+                                id = 0,
+                                cardId = cardId,
+                                amount = geminiResult.amount,
+                                merchant = geminiResult.merchant ?: "Unknown",
+                                date = java.util.Date(),
+                                category = geminiResult.category ?: "Others",
+                                isCredit = geminiResult.isCredit,
+                                source = TransactionSource.GMAIL,
+                                status = TransactionStatus.CONFIRMED,
+                                rawEmailId = email.messageId,
+                                isFlagged = false,
+                                flagReason = null
+                            )
+                        }
+                    }
+
+                    Log.d(
+                        "CardPulse",
+                        "Parsed txn: ${txn?.merchant} ₹${txn?.amount} → card ${txn?.cardId} (email: ${email.subject})"
+                    )
+                    if (txn != null) {
                         repository.insertTransaction(txn)
                         newCount++
                     }

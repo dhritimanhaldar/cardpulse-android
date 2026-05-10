@@ -20,4 +20,5 @@ object AppConfig {
     const val FRAUD_FOREIGN_CURRENCY_FLAG = true
     const val NOTIFICATION_CHANNEL_ID = "cardpulse_alerts"
     const val NOTIFICATION_CHANNEL_NAME = "CardPulse Alerts"
+    const val GEMINI_EMAIL_PARSE_LIMIT = 20
 }

@@ -64,8 +64,18 @@ object EmailTransactionParser {
         val cardId = last4?.let { cardIdByLast4[it] } ?: cardIdByLast4.values.firstOrNull() ?: return null
 
         val date = tryParseDate(email.dateHeader) ?: Date()
-
         val isCredit = text.contains(Regex("credit|refund|cashback|reversal|credited", RegexOption.IGNORE_CASE))
+
+        // Detect bill payment / card due payment — these are credits to the card
+        val isPayment = text.contains(Regex(
+            "payment received|bill payment|amount paid|payment of|paid towards|payment credited|due paid|minimum due|outstanding paid|autopay|payment successful",
+            RegexOption.IGNORE_CASE
+        ))
+        val finalIsCredit = isPayment || isCredit
+        val finalCategory = when {
+            isPayment -> "Payment"
+            else -> suggestCategory(rawMerchant)
+        }
 
         return Transaction(
             id = 0,
@@ -73,8 +83,8 @@ object EmailTransactionParser {
             amount = amount,
             merchant = rawMerchant,
             date = date,
-            category = suggestCategory(rawMerchant),
-            isCredit = isCredit,
+            category = finalCategory,
+            isCredit = finalIsCredit,
             source = TransactionSource.GMAIL,
             status = TransactionStatus.CONFIRMED,
             rawEmailId = email.messageId,

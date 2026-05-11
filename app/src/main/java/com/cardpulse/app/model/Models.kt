@@ -19,6 +19,8 @@ data class Card(
     val statementDay: Int,          // day statement is generated
     val dueDateOffset: Int,         // days after statement day payment is due
     val annualFee: Double,
+    val isAutoFetched: Boolean = false,
+    val isVerified: Boolean = false,
     val isActive: Boolean = true,
     val addedOn: Date = Date(),
     val color: String = "#1A73E8",   // hex color for card UI

@@ -68,15 +68,28 @@ class CardDetailViewModel(
 
                 // Load ResolvedCard for perks/milestones
                 detail?.card?.let { card ->
-                    val resolved = repository.matchCardByBin(
-                        card.last4Digits.take(6).padEnd(6, '0'),
+                    // Try BIN match first
+                    var resolved = repository.matchCardByBin(
+                        card.last4Digits.padStart(6, '0'),
                         card.bankName,
                         card.cardName
                     )
 
+                    // Fallback: search by name if BIN fails
+                    if (resolved == null) {
+                        val searchResults = repository.searchCardsInCatalog("${card.bankName} ${card.cardName}")
+                        resolved = searchResults.firstOrNull()
+                    }
+
                     resolved?.let { rc ->
+                        Log.d("CardDetailViewModel", "Matched card: ${rc.bankName} ${rc.cardName}, ${rc.perks.size} perks, ${rc.milestones.size} milestones")
                         calculatePerkProgress(rc.perks, allTxns)
                         calculateMilestoneProgress(rc.milestones, allTxns)
+                    } ?: run {
+                        Log.w("CardDetailViewModel", "No match found for ${card.bankName} ${card.cardName}. Using defaults.")
+                        val (defaultPerks, defaultMilestones) = com.cardpulse.app.data.CardCatalogLoader.getDefaultPerksAndMilestones()
+                        calculatePerkProgress(defaultPerks, allTxns)
+                        calculateMilestoneProgress(defaultMilestones, allTxns)
                     }
                 }
             } catch (e: Exception) {

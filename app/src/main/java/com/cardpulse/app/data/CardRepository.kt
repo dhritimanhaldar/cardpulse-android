@@ -5,7 +5,9 @@ import com.cardpulse.app.model.*
 import java.util.Calendar
 import java.util.Date
 
-class CardRepository(context: Context) {
+class CardRepository(private val context: Context) {
+
+    private val cardDataRoot by lazy { CardCatalogLoader.loadCardData(context) }
 
     private val db = CardPulseDatabase.getInstance(context)
     private val cardDao = db.cardDao()
@@ -92,6 +94,14 @@ class CardRepository(context: Context) {
             val achieved = cycleSpend >= rule.targetAmount
             spendRuleDao.updateProgress(rule.id, cycleSpend.coerceAtMost(rule.targetAmount), achieved)
         }
+    }
+
+    fun matchCardByBin(cardNumberPrefix: String, bankHint: String?, nameHint: String?): ResolvedCard? {
+        return CardDataParser.matchCard(cardDataRoot, cardNumberPrefix, bankHint, nameHint)
+    }
+
+    fun searchCardsInCatalog(query: String): List<ResolvedCard> {
+        return CardDataParser.searchCards(cardDataRoot, query)
     }
 
     // ─── Billing cycle helper ──────────────────────────────────

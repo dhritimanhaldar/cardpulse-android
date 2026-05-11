@@ -1,264 +1,265 @@
 package com.cardpulse.app.ui.screen
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.cardpulse.app.model.Card
-import com.cardpulse.app.ui.theme.*
-import java.util.Date
-
-@Composable
-fun CardPreviewWidget(bankName: String, last4: String, cardName: String, colorHex: String) {
-    val cardColor = try { Color(android.graphics.Color.parseColor(colorHex)) } catch (e: Exception) { PulseBlue }
-    val darkerColor = cardColor.copy(
-        red = (cardColor.red * 0.65f).coerceIn(0f, 1f),
-        green = (cardColor.green * 0.65f).coerceIn(0f, 1f),
-        blue = (cardColor.blue * 0.65f).coerceIn(0f, 1f)
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(180.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(cardColor, darkerColor)))
-            .padding(24.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp, 28.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFFFFD700).copy(alpha = 0.85f))
-                .align(Alignment.TopStart)
-        )
-        Text(
-            text = bankName.ifBlank { "Bank Name" },
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            modifier = Modifier.align(Alignment.TopEnd)
-        )
-        Text(
-            text = "•••• •••• •••• ${last4.ifBlank { "0000" }}",
-            color = Color.White.copy(alpha = 0.9f),
-            fontWeight = FontWeight.Medium,
-            fontSize = 17.sp,
-            modifier = Modifier.align(Alignment.BottomStart)
-        )
-        Text(
-            text = cardName.ifBlank { "Card Name" },
-            color = Color.White.copy(alpha = 0.75f),
-            fontSize = 12.sp,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 4.dp)
-        )
-    }
-}
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.cardpulse.app.viewmodel.AddCardViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddCardScreen(
-    onSave: (Card) -> Unit,
-    onBack: () -> Unit
+    navController: NavController,
+    editCardId: Long? = null
 ) {
-    var bankName       by remember { mutableStateOf("") }
-    var cardName       by remember { mutableStateOf("") }
-    var last4          by remember { mutableStateOf("") }
-    var cardType       by remember { mutableStateOf("VISA") }
-    var creditLimit    by remember { mutableStateOf("") }
-    var billingCycleDay by remember { mutableStateOf("1") }
-    var annualFee      by remember { mutableStateOf("") }
-    var selectedColor  by remember { mutableStateOf("#1A73E8") }
-    var showCardTypeMenu by remember { mutableStateOf(false) }
-    var errorText      by remember { mutableStateOf("") }
+    val viewModel: AddCardViewModel = viewModel()
+    val context = LocalContext.current
 
-    val cardTypes = listOf("VISA", "MASTERCARD", "RUPAY", "AMEX")
-    val presetColors = listOf(
-        "#1A73E8", "#7B1FA2", "#00897B",
-        "#E53935", "#F57C00", "#37474F"
-    )
+    // Initialize repository
+    LaunchedEffect(Unit) {
+        viewModel.initialize(context)
+    }
+
+    // Load card if editing
+    LaunchedEffect(editCardId) {
+        editCardId?.let { cardId ->
+            viewModel.loadCardForEdit(context, cardId)
+        }
+    }
 
     Scaffold(
-        containerColor = PulseBackground,
         topBar = {
             TopAppBar(
-                title = {
-                    Text("Add New Card", color = PulseOnSurface, fontWeight = FontWeight.Bold)
-                },
+                title = { Text(if (editCardId != null) "Edit Card" else "Add New Card") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = PulseOnSurface)
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = PulseBackground)
+                }
             )
         }
-    ) { padding ->
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(paddingValues)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Live card preview
-            CardPreviewWidget(
-                bankName = bankName,
-                last4 = last4,
-                cardName = cardName,
-                colorHex = selectedColor
+            // Card Number
+            OutlinedTextField(
+                value = viewModel.cardNumber.value,
+                onValueChange = { viewModel.cardNumber.value = it },
+                label = { Text("Card Number") },
+                placeholder = { Text("1234 5678 9012 3456") },
+                modifier = Modifier.fillMaxWidth()
             )
-            Spacer(modifier = Modifier.height(20.dp))
 
-            PulseTextField(value = bankName, label = "Bank Name (e.g. HDFC, Axis)",
-                onValueChange = { bankName = it })
-            PulseTextField(value = cardName, label = "Card Name (e.g. Infinia, Magnus)",
-                onValueChange = { cardName = it })
-            PulseTextField(value = last4, label = "Last 4 Digits",
-                onValueChange = { if (it.length <= 4) last4 = it },
-                keyboardType = KeyboardType.Number)
-            PulseTextField(value = creditLimit, label = "Credit Limit (₹)",
-                onValueChange = { creditLimit = it }, keyboardType = KeyboardType.Number)
-            PulseTextField(value = billingCycleDay, label = "Billing Cycle Day (1-28)",
-                onValueChange = { billingCycleDay = it }, keyboardType = KeyboardType.Number)
-            PulseTextField(value = annualFee, label = "Annual Fee (₹)",
-                onValueChange = { annualFee = it }, keyboardType = KeyboardType.Number)
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Card type dropdown
-            Text("Card Type", fontSize = 13.sp, color = PulseSubtext)
-            Box {
-                OutlinedButton(
-                    onClick = { showCardTypeMenu = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PulseOnSurface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PulseSubtext.copy(alpha = 0.4f))
+            // Card Holder Name
+            OutlinedTextField(
+                value = viewModel.cardHolderName.value,
+                onValueChange = { viewModel.cardHolderName.value = it },
+                label = { Text("Card Holder Name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Bank Selection Dropdown
+            Text(
+                text = "Bank",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            ExposedDropdownMenuBox(
+                expanded = viewModel.showBankDropdown.value,
+                onExpandedChange = { viewModel.showBankDropdown.value = it }
+            ) {
+                OutlinedTextField(
+                    value = viewModel.selectedBank.value?.name ?: "Select Bank",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(
+                            expanded = viewModel.showBankDropdown.value
+                        )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = viewModel.showBankDropdown.value,
+                    onDismissRequest = { viewModel.showBankDropdown.value = false }
                 ) {
-                    Text(cardType, color = PulseOnSurface)
-                }
-                DropdownMenu(
-                    expanded = showCardTypeMenu,
-                    onDismissRequest = { showCardTypeMenu = false },
-                    modifier = Modifier.background(PulseCard)
-                ) {
-                    cardTypes.forEach { type ->
+                    viewModel.availableBanks.value.forEach { bank ->
                         DropdownMenuItem(
-                            text = { Text(type, color = PulseOnSurface) },
-                            onClick = { cardType = type; showCardTypeMenu = false }
+                            text = { Text(bank.name) },
+                            onClick = { viewModel.onBankSelected(bank) }
                         )
                     }
                 }
             }
 
-            // Color picker
-            Text("Card Color", fontSize = 13.sp, color = PulseSubtext)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                presetColors.forEach { hex ->
-                    val color = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { PulseBlue }
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(color)
-                            .border(
-                                width = if (selectedColor == hex) 3.dp else 0.dp,
-                                color = Color.White,
-                                shape = CircleShape
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Card Variant Dropdown (only show if bank selected)
+            if (viewModel.selectedBank.value != null) {
+                Text(
+                    text = "Card Variant",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                ExposedDropdownMenuBox(
+                    expanded = viewModel.showCardVariantDropdown.value,
+                    onExpandedChange = { viewModel.showCardVariantDropdown.value = it }
+                ) {
+                    OutlinedTextField(
+                        value = viewModel.selectedCardVariant.value?.displayName ?: "Select Card",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = viewModel.showCardVariantDropdown.value
                             )
-                            .clickable { selectedColor = hex }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
                     )
-                }
-            }
 
-            if (errorText.isNotEmpty()) {
-                Text(errorText, color = PulseDanger, fontSize = 13.sp)
-            }
-
-            Button(
-                onClick = {
-                    when {
-                        bankName.isBlank() -> errorText = "Bank name is required"
-                        cardName.isBlank() -> errorText = "Card name is required"
-                        last4.length != 4  -> errorText = "Enter exactly 4 digits"
-                        creditLimit.toDoubleOrNull() == null -> errorText = "Enter a valid credit limit"
-                        billingCycleDay.toIntOrNull()?.let { it < 1 || it > 28 } != false -> errorText = "Billing day must be 1-28"
-                        annualFee.toDoubleOrNull() == null -> errorText = "Enter a valid annual fee"
-                        else -> {
-                            errorText = ""
-                            onSave(
-                                Card(
-                                    bankName        = bankName.trim(),
-                                    cardName        = cardName.trim(),
-                                    last4Digits     = last4.trim(),
-                                    cardType        = cardType,
-                                    cardNetwork     = "$bankName $cardName",
-                                    creditLimit     = creditLimit.toDouble(),
-                                    billingCycleDay = billingCycleDay.toInt(),
-                                    statementDay    = billingCycleDay.toInt(),
-                                    dueDateOffset   = 20,
-                                    annualFee       = annualFee.toDouble(),
-                                    addedOn         = Date(),
-                                    color           = selectedColor
-                                )
+                    ExposedDropdownMenu(
+                        expanded = viewModel.showCardVariantDropdown.value,
+                        onDismissRequest = { viewModel.showCardVariantDropdown.value = false }
+                    ) {
+                        viewModel.availableCardVariants.value.forEach { variant ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            text = variant.displayName,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        variant.groupName?.let { groupName ->
+                                            Text(
+                                                text = groupName,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = { viewModel.onCardVariantSelected(variant) }
                             )
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PulseBlue)
-            ) {
-                Text("Save Card", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // Card Nickname (optional)
+            OutlinedTextField(
+                value = viewModel.cardNickname.value,
+                onValueChange = { viewModel.cardNickname.value = it },
+                label = { Text("Card Nickname (Optional)") },
+                placeholder = { Text("My Travel Card") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Expiry Date
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = viewModel.expiryMonth.value,
+                    onValueChange = { viewModel.expiryMonth.value = it },
+                    label = { Text("Month") },
+                    placeholder = { Text("MM") },
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                OutlinedTextField(
+                    value = viewModel.expiryYear.value,
+                    onValueChange = { viewModel.expiryYear.value = it },
+                    label = { Text("Year") },
+                    placeholder = { Text("YY") },
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            // Color Picker (simplified)
+            Text(
+                text = "Card Color",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val colors = listOf(
+                    Color(0xFF1976D2), // Blue
+                    Color(0xFFD32F2F), // Red
+                    Color(0xFF388E3C), // Green
+                    Color(0xFFF57C00), // Orange
+                    Color(0xFF7B1FA2), // Purple
+                    Color(0xFF303F9F)  // Indigo
+                )
+
+                colors.forEach { color ->
+                    Card(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = color
+                        ),
+                        onClick = { viewModel.selectedColor = color }
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            if (viewModel.selectedColor == color) {
+                                Text(
+                                    "✓",
+                                    color = Color.White,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Save Button
+            Button(
+                onClick = { viewModel.saveCard(context, navController) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = viewModel.cardNumber.value.isNotBlank() &&
+                        viewModel.cardHolderName.value.isNotBlank() &&
+                        viewModel.selectedBank.value != null
+            ) {
+                Text(if (editCardId != null) "Update Card" else "Add Card")
+            }
         }
     }
-}
-
-@Composable
-fun PulseTextField(
-    value: String,
-    label: String,
-    onValueChange: (String) -> Unit,
-    keyboardType: KeyboardType = KeyboardType.Text
-) {
-    OutlinedTextField(
-        value         = value,
-        onValueChange = onValueChange,
-        label         = { Text(label, color = PulseSubtext, fontSize = 13.sp) },
-        modifier      = Modifier.fillMaxWidth(),
-        shape         = RoundedCornerShape(10.dp),
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        colors        = OutlinedTextFieldDefaults.colors(
-            focusedTextColor    = PulseOnSurface,
-            unfocusedTextColor  = PulseOnSurface,
-            focusedBorderColor  = PulseBlue,
-            unfocusedBorderColor = PulseSubtext.copy(alpha = 0.4f),
-            cursorColor         = PulseBlue
-        ),
-        singleLine = true
-    )
 }

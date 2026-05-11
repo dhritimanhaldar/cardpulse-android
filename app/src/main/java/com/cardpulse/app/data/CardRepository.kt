@@ -1,119 +1,144 @@
 package com.cardpulse.app.data
 
 import android.content.Context
-import com.cardpulse.app.model.*
-import java.util.Calendar
-import java.util.Date
+import com.cardpulse.app.model.Card
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class CardRepository(private val context: Context) {
 
-    private val cardDataRoot by lazy { CardCatalogLoader.loadCardData(context) }
-
-    private val db = CardPulseDatabase.getInstance(context)
-    private val cardDao = db.cardDao()
-    private val transactionDao = db.transactionDao()
-    private val spendRuleDao = db.spendRuleDao()
-    private val loungeDao = db.loungeDao()
-
-    // ─── Cards ─────────────────────────────────────────────────
-    suspend fun getAllCards(): List<Card> = cardDao.getAllCards()
-    suspend fun getCardById(id: Int): Card? = cardDao.getCardById(id)
-    suspend fun insertCard(card: Card): Long = cardDao.insertCard(card)
-    suspend fun updateCard(card: Card) = cardDao.updateCard(card)
-    suspend fun deleteCard(cardId: Int) = cardDao.softDeleteCard(cardId)
-
-    // ─── Transactions ──────────────────────────────────────────
-    suspend fun getTransactionsForCard(cardId: Int): List<Transaction> =
-        transactionDao.getTransactionsForCard(cardId)
-
-    suspend fun insertTransaction(transaction: Transaction): Long =
-        transactionDao.insertTransaction(transaction)
-
-    suspend fun updateTransaction(transaction: Transaction) =
-        transactionDao.updateTransaction(transaction)
-
-    suspend fun getPendingFlaggedTransactions(): List<Transaction> =
-        transactionDao.getPendingFlaggedTransactions()
-
-    suspend fun getTransactionByEmailId(emailId: String): Transaction? =
-        transactionDao.getTransactionByEmailId(emailId)
-
-    suspend fun getTotalSpentThisCycle(card: Card): Double {
-        val cycleStart = getBillingCycleStart(card.billingCycleDay)
-        return transactionDao.getTotalSpentSince(card.id, cycleStart.time) ?: 0.0
+    // Get all unique banks from catalog
+    suspend fun getAllBanks(): List<BankOption> = withContext(Dispatchers.IO) {
+        val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
+        catalog.banks.map { bank ->
+            BankOption(
+                code = bank.code,
+                name = bank.name
+            )
+        }.sortedBy { it.name }
     }
 
-    // ─── Spend Rules ───────────────────────────────────────────
-    suspend fun getRulesForCard(cardId: Int): List<SpendRule> =
-        spendRuleDao.getRulesForCard(cardId)
+    // Get all card variants for a specific bank
+    suspend fun getCardVariantsForBank(bankCode: String): List<CardVariantOption> =
+        withContext(Dispatchers.IO) {
+            val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
+            val bank = catalog.banks.find { it.code == bankCode } ?: return@withContext emptyList()
 
-    suspend fun insertRule(rule: SpendRule): Long = spendRuleDao.insertRule(rule)
-    suspend fun updateRule(rule: SpendRule) = spendRuleDao.updateRule(rule)
+            val variants = mutableListOf<CardVariantOption>()
+            bank.groups.forEach { group ->
+                group.cards.forEach { card ->
+                    variants.add(CardVariantOption(
+                        cardId = card.id,
+                        name = card.name,
+                        groupName = group.name,
+                        displayName = formatCardDisplayName(bank.name, group.name, card.name)
+                    ))
+                }
+            }
+            variants.sortedBy { it.displayName }
+        }
 
-    suspend fun replaceSpendRules(cardId: Int, rules: List<SpendRule>) {
-        spendRuleDao.deleteRulesForCard(cardId)
-        rules.forEach { spendRuleDao.insertRule(it) }
+    // Smart name formatter to avoid duplication
+    private fun formatCardDisplayName(bankName: String, groupName: String?, cardName: String): String {
+        val cleanCardName = cardName
+            .replace(bankName, "", ignoreCase = true)
+            .trim()
+
+        val finalCardName = if (groupName != null) {
+            cleanCardName.replace(groupName, "", ignoreCase = true).trim()
+        } else {
+            cleanCardName
+        }
+
+        return when {
+            groupName != null && finalCardName.isNotBlank() ->
+                "$bankName $groupName $finalCardName"
+            groupName != null ->
+                "$bankName $groupName"
+            finalCardName.isNotBlank() ->
+                "$bankName $finalCardName"
+            else ->
+                "$bankName Card"
+        }.replace("\\s+".toRegex(), " ").trim()
     }
 
-    suspend fun updateSpendRuleProgress(ruleId: Int, newAmount: Double, isAchieved: Boolean) {
-        spendRuleDao.updateProgress(ruleId, newAmount, isAchieved)
+    // Match card by BIN
+    suspend fun matchCardByBin(bin: String): ResolvedCard? = withContext(Dispatchers.IO) {
+        val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext null
+        val parser = CardDataParser(catalog)
+        parser.matchCardByBin(bin)
     }
 
-    // ─── Lounge ────────────────────────────────────────────────
-    suspend fun getLoungeForCard(cardId: Int): LoungeAccess? =
-        loungeDao.getLoungeForCard(cardId)
+    // Search cards in catalog
+    suspend fun searchCardsInCatalog(query: String): List<ResolvedCard> = withContext(Dispatchers.IO) {
+        val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
+        val parser = CardDataParser(catalog)
 
-    suspend fun insertOrUpdateLounge(lounge: LoungeAccess) =
-        loungeDao.insertOrUpdate(lounge)
+        val results = mutableListOf<ResolvedCard>()
+        catalog.banks.forEach { bank ->
+            bank.groups.forEach { group ->
+                group.cards.forEach { card ->
+                    val resolved = parser.resolveCard(bank.code, group.name, card.id)
+                    if (resolved != null &&
+                        (resolved.cardName.contains(query, ignoreCase = true) ||
+                                resolved.bankName.contains(query, ignoreCase = true))) {
+                        results.add(resolved)
+                    }
+                }
+            }
+        }
+        results
+    }
 
-    // ─── Composite ─────────────────────────────────────────────
-    suspend fun getCardWithProgress(cardId: Int): CardWithProgress? {
-        val card = cardDao.getCardById(cardId) ?: return null
-        val rules = spendRuleDao.getRulesForCard(cardId)
-        val totalSpent = getTotalSpentThisCycle(card)
-        val recentTxns = transactionDao.getTransactionsSince(
-            cardId, getBillingCycleStart(card.billingCycleDay).time
+    // Rematch and refresh card after edit
+    suspend fun refreshCardMetrics(cardId: Long) = withContext(Dispatchers.IO) {
+        val dao = CardPulseDatabase.getDatabase(context).cardDao()
+        val card = dao.getCardById(cardId) ?: return@withContext
+
+        // 1. Rematch card to JSON catalog
+        val resolved = matchCardByBin(card.cardNumber.take(6))
+
+        // 2. Update card with catalog metadata
+        val updatedCard = card.copy(
+            catalogId = resolved?.catalogId,
+            cardType = resolved?.cardType,
+            network = resolved?.network,
+            isVerified = true
         )
-        val lounge = loungeDao.getLoungeForCard(cardId)
-        return CardWithProgress(card, rules, totalSpent, recentTxns, lounge)
+        dao.updateCard(updatedCard)
+
+        // 3. Rematch all SMS transactions to this card
+        rematchTransactionsForCard(cardId, card.cardNumber.takeLast(4), card.bankName)
     }
 
-    suspend fun getAllCardsWithProgress(): List<CardWithProgress> =
-        getAllCards().mapNotNull { getCardWithProgress(it.id) }
+    // Rematch SMS transactions after bank/card change
+    private suspend fun rematchTransactionsForCard(
+        cardId: Long,
+        last4Digits: String,
+        bankName: String
+    ) {
+        val transactionDao = CardPulseDatabase.getDatabase(context).transactionDao()
 
-    suspend fun getAllCardsSync(): List<Card> {
-        return cardDao.getAllCardsSync()
-    }
+        val potentialMatches = transactionDao.getAllTransactions().filter { txn ->
+            txn.cardNumber.endsWith(last4Digits) &&
+                    txn.description.contains(bankName, ignoreCase = true)
+        }
 
-    suspend fun recalculateSpendProgress(cardId: Int) {
-        val rules = spendRuleDao.getRulesForCard(cardId)
-        val allTxns = transactionDao.getConfirmedDebitsForCard(cardId)
-        val cycleSpend = allTxns.sumOf { it.amount }
-
-        rules.forEach { rule ->
-            val achieved = cycleSpend >= rule.targetAmount
-            spendRuleDao.updateProgress(rule.id, cycleSpend.coerceAtMost(rule.targetAmount), achieved)
+        potentialMatches.forEach { txn ->
+            transactionDao.updateTransaction(txn.copy(cardId = cardId))
         }
     }
-
-    fun matchCardByBin(cardNumberPrefix: String, bankHint: String?, nameHint: String?): ResolvedCard? {
-        return CardDataParser.matchCard(cardDataRoot, cardNumberPrefix, bankHint, nameHint)
-    }
-
-    fun searchCardsInCatalog(query: String): List<ResolvedCard> {
-        return CardDataParser.searchCards(cardDataRoot, query)
-    }
-
-    // ─── Billing cycle helper ──────────────────────────────────
-    private fun getBillingCycleStart(billingCycleDay: Int): Date {
-        val cal = Calendar.getInstance()
-        val today = cal.get(Calendar.DAY_OF_MONTH)
-        if (today < billingCycleDay) cal.add(Calendar.MONTH, -1)
-        cal.set(Calendar.DAY_OF_MONTH, billingCycleDay)
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.time
-    }
 }
+
+// Data classes for bank and card selection
+data class BankOption(
+    val code: String,
+    val name: String
+)
+
+data class CardVariantOption(
+    val cardId: String,
+    val name: String,
+    val groupName: String?,
+    val displayName: String
+)

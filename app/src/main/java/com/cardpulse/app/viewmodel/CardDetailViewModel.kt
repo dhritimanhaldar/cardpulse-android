@@ -57,6 +57,7 @@ class CardDetailViewModel(
     }
 
     fun loadCard() {
+        Log.d("CardDetailViewModel", "===== loadCard() called for cardId=$cardId =====")
         viewModelScope.launch {
             _isLoading.value = true
             try {

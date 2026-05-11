@@ -14,9 +14,7 @@
           "bn": {"px": ["444446","444447"],"ln": [16]},
           "p": [
             {"i": "i1","n": "Base 3.3RP","rt": "p","cy": "m","mn": 150},
-            {"i": "i2","n": "Unlimited Lounge","rt": "l","cy": "a","vp": 0,"nw": "pp","md": [
-              {"n": "Infinia Select","vp": 8,"cy": "q"}
-            ]},
+            {"i": "i2","n": "Unlimited Lounge","rt": "l","cy": "a","vp": 0,"nw": "pp","md": {"n": "Infinia Select","vp": 8,"cy": "q"}},
             {"i": "i3","n": "Forex 2%","rt": "f","cy": "o","fm": 2}
           ],
           "m": [

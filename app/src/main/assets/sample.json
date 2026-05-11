@@ -1,0 +1,175 @@
+{
+  "v": 1,
+  "banks": [
+    {
+      "b": "HDFC Bank",
+      "p": [
+        {
+          "i": "hp1",
+          "n": "SmartEMI",
+          "rt": "f",
+          "cy": "o",
+          "mn": 2500,
+          "up": null,
+          "x": []
+        }
+      ],
+      "g": [
+        {
+          "n": "Infinia",
+          "p": [
+            {
+              "i": "ip1",
+              "n": "Base Rewards",
+              "rt": "p",
+              "cy": "m",
+              "mn": 150,
+              "up": null,
+              "x": []
+            },
+            {
+              "i": "ip2",
+              "n": "Dining Boost",
+              "rt": "p",
+              "cy": "m",
+              "mn": 150,
+              "up": { "t": "sp", "v": 20000 },
+              "x": []
+            },
+            {
+              "i": "ip3",
+              "n": "Lounge Access",
+              "rt": "l",
+              "cy": "a",
+              "mn": null,
+              "up": null,
+              "x": [],
+              "md": [
+                {
+                  "n": "Infinia Select",
+                  "nw": "v",
+                  "ov": {
+                    "visitsPerYear": 8,
+                    "cycleType": "q"
+                  }
+                }
+              ]
+            }
+          ],
+          "m": [
+            {
+              "i": "im1",
+              "n": "Welcome Voucher",
+              "tgt": 0,
+              "rw": "₹12,500 voucher",
+              "rt": "v",
+              "cy": "o",
+              "mn": null,
+              "x": []
+            }
+          ],
+          "c": [
+            {
+              "n": "Infinia Metal",
+              "nw": "v",
+              "t": "sp",
+              "af": 12500,
+              "jf": 12500,
+              "fs": 800000,
+              "fm": 2,
+              "rv": 1.0,
+              "cl": "#1A1A2E",
+              "cf": "h",
+              "p": [
+                {
+                  "i": "cp1",
+                  "n": "Dining Bonus",
+                  "rt": "p",
+                  "cy": "m",
+                  "mn": 150,
+                  "up": { "t": "sp", "v": 20000 },
+                  "x": []
+                }
+              ],
+              "m": [
+                {
+                  "i": "cm1",
+                  "n": "Annual Fee Waiver",
+                  "tgt": 800000,
+                  "rw": "Fee reversal",
+                  "rt": "w",
+                  "cy": "a",
+                  "mn": null,
+                  "x": []
+                }
+              ],
+              "cv": ["c1", "c7"]
+            },
+            {
+              "n": "Infinia Select",
+              "nw": "v",
+              "t": "p",
+              "af": 5000,
+              "jf": 5000,
+              "fs": 500000,
+              "fm": 2,
+              "rv": 1.0,
+              "cl": "#2A2A4E",
+              "cf": "m",
+              "p": [],
+              "m": [],
+              "cv": ["c2", "c9"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "b": "Axis Bank",
+      "p": [
+        {
+          "i": "ap1",
+          "n": "Airport Lounge",
+          "rt": "l",
+          "cy": "q",
+          "mn": null,
+          "up": null,
+          "x": []
+        }
+      ],
+      "g": [
+        {
+          "n": "Magnus",
+          "p": [
+            {
+              "i": "ag1",
+              "n": "EDGE Miles",
+              "rt": "mi",
+              "cy": "m",
+              "mn": 200,
+              "up": null,
+              "x": []
+            }
+          ],
+          "c": [
+            {
+              "n": "Magnus Burgundy",
+              "nw": "v",
+              "t": "sp",
+              "af": 30000,
+              "jf": 30000,
+              "fs": 1500000,
+              "fm": 1.5,
+              "rv": 1.2,
+              "cl": "#8B0000",
+              "cf": "h",
+              "p": [],
+              "m": [],
+              "cv": ["c1", "c7"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -45,8 +45,711 @@
           ]
         }
       ]
+    },  {
+      "b": "ICICI Bank",
+      "bn": {
+        "px": [
+          "401234",
+          "401235"
+        ],
+        "ln": [
+          16
+        ]
+      },
+      "p": [
+        {
+          "i": "ic1",
+          "n": "Welcome Voucher",
+          "rt": "v",
+          "cy": "o",
+          "mn": 0
+        },
+        {
+          "i": "ic2",
+          "n": "Lounge Access",
+          "rt": "l",
+          "cy": "q"
+        }
+      ],
+      "g": [
+        {
+          "n": "Sapphiro",
+          "bn": {
+            "px": [
+              "40123410",
+              "40123420"
+            ],
+            "ln": [
+              16
+            ]
+          },
+          "p": [
+            {
+              "i": "is1",
+              "n": "Base Rewards",
+              "rt": "p",
+              "cy": "m",
+              "mn": 150
+            },
+            {
+              "i": "is2",
+              "n": "Dining Rewards",
+              "rt": "p",
+              "cy": "m",
+              "mn": 150
+            },
+            {
+              "i": "is3",
+              "n": "Lounge",
+              "rt": "l",
+              "cy": "q"
+            }
+          ],
+          "m": [
+            {
+              "i": "ism1",
+              "n": "Welcome Voucher",
+              "tgt": 0,
+              "rw": "INR 1000 voucher",
+              "rt": "v",
+              "cy": "o"
+            },
+            {
+              "i": "ism2",
+              "n": "Annual Lounge Milestone",
+              "tgt": 200000,
+              "rt": "v",
+              "cy": "a"
+            }
+          ],
+          "c": [
+            {
+              "n": "ICICI Sapphiro",
+              "nw": "v",
+              "t": "pr",
+              "af": 6500,
+              "jf": 3500,
+              "fs": 200000,
+              "fm": 3.5,
+              "rv": 1.0,
+              "cl": "#0066CC",
+              "cf": "h",
+              "bn": {
+                "px": [
+                  "40123410"
+                ],
+                "ln": [
+                  16
+                ]
+              },
+              "p": [
+                {
+                  "i": "is1",
+                  "n": "Base Rewards",
+                  "rt": "p",
+                  "cy": "m",
+                  "mn": 150
+                },
+                {
+                  "i": "is2",
+                  "n": "Dining Rewards",
+                  "rt": "p",
+                  "cy": "m",
+                  "mn": 150,
+                  "up": {
+                    "t": "rw",
+                    "v": 500
+                  }
+                },
+                {
+                  "i": "is3",
+                  "n": "Lounge",
+                  "rt": "l",
+                  "cy": "q",
+                  "up": {
+                    "t": "sp",
+                    "v": 10000
+                  }
+                }
+              ],
+              "m": [
+                {
+                  "i": "ism1",
+                  "n": "Welcome Voucher",
+                  "tgt": 0,
+                  "rw": "INR 1000 voucher",
+                  "rt": "v",
+                  "cy": "o"
+                },
+                {
+                  "i": "ism2",
+                  "n": "Annual Lounge Milestone",
+                  "tgt": 200000,
+                  "rt": "v",
+                  "cy": "a"
+                }
+              ],
+              "cv": [
+                "c1",
+                "c7"
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
+      "b": "AU Small Finance Bank",
+      "bn": {
+        "px": [
+          "543210"
+        ],
+        "ln": [
+          13,
+          16
+        ]
+      },
+      "p": [
+        {
+          "i": "au1",
+          "n": "Base Rewards",
+          "rt": "p",
+          "cy": "m",
+          "mn": 100
+        },
+        {
+          "i": "au2",
+          "n": "Fuel Surcharge Waiver",
+          "rt": "w",
+          "cy": "m",
+          "up": {
+            "t": "sp",
+            "v": 2000
+          }
+        }
+      ],
+      "g": [
+        {
+          "n": "Vetta",
+          "bn": {
+            "px": [
+              "54321010"
+            ],
+            "ln": [
+              16
+            ]
+          },
+          "p": [
+            {
+              "i": "av1",
+              "n": "Grocery Rewards",
+              "rt": "p",
+              "cy": "m",
+              "mn": 0
+            },
+            {
+              "i": "av2",
+              "n": "Utility Rewards",
+              "rt": "p",
+              "cy": "m",
+              "mn": 0
+            }
+          ],
+          "m": [
+            {
+              "i": "avm1",
+              "n": "Quarterly Bonus Points",
+              "tgt": 50000,
+              "rt": "p",
+              "cy": "q"
+            },
+            {
+              "i": "avm2",
+              "n": "Annual Voucher",
+              "tgt": 200000,
+              "rt": "v",
+              "cy": "a"
+            }
+          ],
+          "c": [
+            {
+              "n": "AU Vetta",
+              "nw": "v",
+              "t": "pr",
+              "af": 2999,
+              "jf": 0,
+              "fs": 40000,
+              "fm": 3.5,
+              "rv": 1.0,
+              "cl": "#E60000",
+              "cf": "h",
+              "bn": {
+                "px": [
+                  "54321010"
+                ],
+                "ln": [
+                  16
+                ]
+              },
+              "p": [
+                {
+                  "i": "av1",
+                  "n": "Grocery Rewards",
+                  "rt": "p",
+                  "cy": "m",
+                  "mn": 0,
+                  "up": {
+                    "t": "rw",
+                    "v": 1000
+                  }
+                },
+                {
+                  "i": "av2",
+                  "n": "Utility Rewards",
+                  "rt": "p",
+                  "cy": "m",
+                  "mn": 0,
+                  "up": {
+                    "t": "rw",
+                    "v": 500
+                  }
+                },
+                {
+                  "i": "au2",
+                  "n": "Fuel Surcharge Waiver",
+                  "rt": "w",
+                  "cy": "m",
+                  "up": {
+                    "t": "sp",
+                    "v": 2000
+                  }
+                }
+              ],
+              "m": [
+                {
+                  "i": "avm1",
+                  "n": "Quarterly Bonus Points",
+                  "tgt": 50000,
+                  "rt": "p",
+                  "cy": "q"
+                },
+                {
+                  "i": "avm2",
+                  "n": "Annual Voucher",
+                  "tgt": 200000,
+                  "rt": "v",
+                  "cy": "a"
+                }
+              ],
+              "cv": [
+                "c1",
+                "c12",
+                "c13"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "b": "HSBC India",
+      "bn": {
+        "px": [
+          "412345",
+          "412346"
+        ],
+        "ln": [
+          16
+        ]
+      },
+      "p": [
+        {
+          "i": "hs1",
+          "n": "Base Cashback",
+          "rt": "c",
+          "cy": "m",
+          "mn": 0
+        },
+        {
+          "i": "hs2",
+          "n": "Dining Cashback",
+          "rt": "c",
+          "cy": "m",
+          "mn": 0
+        }
+      ],
+      "g": [
+        {
+          "n": "Live+",
+          "bn": {
+            "px": [
+              "41234510"
+            ],
+            "ln": [
+              16
+            ]
+          },
+          "p": [
+            {
+              "i": "hs1",
+              "n": "Base Cashback",
+              "rt": "c",
+              "cy": "m",
+              "mn": 0
+            },
+            {
+              "i": "hs2",
+              "n": "Dining Cashback",
+              "rt": "c",
+              "cy": "m",
+              "mn": 0,
+              "up": {
+                "t": "rw",
+                "v": 1000
+              }
+            }
+          ],
+          "m": [
+            {
+              "i": "hsm1",
+              "n": "Annual Voucher",
+              "tgt": 150000,
+              "rt": "v",
+              "cy": "a"
+            }
+          ],
+          "c": [
+            {
+              "n": "HSBC Live+",
+              "nw": "v",
+              "t": "cb",
+              "af": 1999,
+              "jf": 999,
+              "fm": 3.5,
+              "rv": 1.5,
+              "cl": "#003366",
+              "cf": "m",
+              "bn": {
+                "px": [
+                  "41234510"
+                ],
+                "ln": [
+                  16
+                ]
+              },
+              "p": [
+                {
+                  "i": "hs1",
+                  "n": "Base Cashback",
+                  "rt": "c",
+                  "cy": "m",
+                  "mn": 0
+                },
+                {
+                  "i": "hs2",
+                  "n": "Dining Cashback",
+                  "rt": "c",
+                  "cy": "m",
+                  "mn": 0,
+                  "up": {
+                    "t": "rw",
+                    "v": 1000
+                  }
+                }
+              ],
+              "m": [
+                {
+                  "i": "hsm1",
+                  "n": "Annual Voucher",
+                  "tgt": 150000,
+                  "rt": "v",
+                  "cy": "a"
+                }
+              ],
+              "cv": [
+                "c1",
+                "c2",
+                "c3",
+                "c4"
+              ]
+            }
+          ]
+        },
+        {
+          "n": "RuPay Cashback",
+          "bn": {
+            "px": [
+              "606181"
+            ],
+            "ln": [
+              16
+            ]
+          },
+          "p": [
+            {
+              "i": "hr1",
+              "n": "Base Cashback",
+              "rt": "c",
+              "cy": "m",
+              "mn": 0
+            },
+            {
+              "i": "hr2",
+              "n": "Dining Cashback",
+              "rt": "c",
+              "cy": "m",
+              "mn": 0,
+              "up": {
+                "t": "rw",
+                "v": 500
+              }
+            }
+          ],
+          "m": [
+            {
+              "i": "hrm1",
+              "n": "Annual Voucher",
+              "tgt": 100000,
+              "rt": "v",
+              "cy": "a"
+            }
+          ],
+          "c": [
+            {
+              "n": "HSBC RuPay Cashback",
+              "nw": "rp",
+              "t": "cb",
+              "af": 499,
+              "jf": 0,
+              "fm": 3.5,
+              "rv": 1.0,
+              "cl": "#006600",
+              "cf": "m",
+              "bn": {
+                "px": [
+                  "606181"
+                ],
+                "ln": [
+                  16
+                ]
+              },
+              "p": [
+                {
+                  "i": "hr1",
+                  "n": "Base Cashback",
+                  "rt": "c",
+                  "cy": "m",
+                  "mn": 0
+                },
+                {
+                  "i": "hr2",
+                  "n": "Dining Cashback",
+                  "rt": "c",
+                  "cy": "m",
+                  "mn": 0,
+                  "up": {
+                    "t": "rw",
+                    "v": 500
+                  }
+                }
+              ],
+              "m": [
+                {
+                  "i": "hrm1",
+                  "n": "Annual Voucher",
+                  "tgt": 100000,
+                  "rt": "v",
+                  "cy": "a"
+                }
+              ],
+              "cv": [
+                "c1",
+                "c2",
+                "c4"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "b": "State Bank of India",
+      "bn": {
+        "px": [
+          "606981"
+        ],
+        "ln": [
+          16
+        ]
+      },
+      "p": [
+        {
+          "i": "sb1",
+          "n": "Base Cashback",
+          "rt": "c",
+          "cy": "m",
+          "mn": 0
+        },
+        {
+          "i": "sb2",
+          "n": "Paytm Spends Bonus",
+          "rt": "c",
+          "cy": "m",
+          "mn": 0
+        }
+      ],
+      "g": [
+        {
+          "n": "Paytm",
+          "bn": {
+            "px": [
+              "60698110"
+            ],
+            "ln": [
+              16
+            ]
+          },
+          "p": [
+            {
+              "i": "sb1",
+              "n": "Base Cashback",
+              "rt": "c",
+              "cy": "m",
+              "mn": 0
+            },
+            {
+              "i": "sb2",
+              "n": "Paytm Spends Bonus",
+              "rt": "c",
+              "cy": "m",
+              "mn": 0,
+              "up": {
+                "t": "rw",
+                "v": 1000
+              }
+            }
+          ],
+          "m": [
+            {
+              "i": "sbm1",
+              "n": "Annual Voucher",
+              "tgt": 75000,
+              "rt": "v",
+              "cy": "a"
+            }
+          ],
+          "c": [
+            {
+              "n": "Paytm SBI Card",
+              "nw": "rp",
+              "t": "cb",
+              "af": 499,
+              "jf": 0,
+              "rv": 2.0,
+              "cl": "#FF6600",
+              "cf": "h",
+              "bn": {
+                "px": [
+                  "60698110"
+                ],
+                "ln": [
+                  16
+                ]
+              },
+              "p": [
+                {
+                  "i": "sb1",
+                  "n": "Base Cashback",
+                  "rt": "c",
+                  "cy": "m",
+                  "mn": 0
+                },
+                {
+                  "i": "sb2",
+                  "n": "Paytm Spends Bonus",
+                  "rt": "c",
+                  "cy": "m",
+                  "mn": 0,
+                  "up": {
+                    "t": "rw",
+                    "v": 1000
+                  }
+                }
+              ],
+              "m": [
+                {
+                  "i": "sbm1",
+                  "n": "Annual Voucher",
+                  "tgt": 75000,
+                  "rt": "v",
+                  "cy": "a"
+                }
+              ],
+              "cv": [
+                "c1",
+                "c7",
+                "c14"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "b": "IDFC FIRST Bank",
+      "bn": {
+        "px": [
+          "222100"
+        ],
+        "ln": [
+          16
+        ]
+      },
+      "p": [
+        {
+          "i": "id1",
+          "n": "Base Rewards",
+          "rt": "p",
+          "cy": "m",
+          "mn": 150
+        },
+        {
+          "i": "id2",
+          "n": "Lounge Access",
+          "rt": "l",
+          "cy": "m"
+        },
+        {
+          "i": "id3",
+          "n": "Insurance Perks",
+          "rt": "i",
+          "cy": "o"
+        }
+      ],
+      "g": [
+        {
+          "n": "Select",
+          "bn": {
+            "px": [
+              "22210010"
+            ],
+            "ln": [
+              16
+            ]
+          },
+          "p": [
+            {
+              "i": "id1",
+              "n": "Base Rewards",
+              "rt": "p",
+              "cy": "m",
+              "mn": 150
+            },
+            {
+              "i": "id2",
+              "
+
+            {
       "b": "Axis Bank",
       "bn": {"px": ["512345","512346"],"ln": [16]},
       "p": [

@@ -213,7 +213,7 @@ fun CardDetailScreen(
                             modifier = Modifier.weight(1f),
                             onClick = { showAllTransactions = false }
                         ) {
-                            Text("Spend Progress")
+                            Text("Milestone")
                         }
                         Button(
                             modifier = Modifier.weight(1f),
@@ -226,7 +226,7 @@ fun CardDetailScreen(
                             modifier = Modifier.weight(1f),
                             onClick = { showAllTransactions = false }
                         ) {
-                            Text("Spend Progress")
+                            Text("Milestone")
                         }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
@@ -267,7 +267,7 @@ fun CardDetailScreen(
 
             item {
                 Text(
-                    text = "Spend Progress",
+                    text = "Milestone",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
@@ -279,6 +279,7 @@ fun CardDetailScreen(
                         title = progress.milestone.n,
                         subtitle = progress.milestone.rw,
                         cycle = progress.milestone.cy,
+                        rewardType = progress.milestone.rt,
                         currentAmount = progress.currentAmount,
                         targetAmount = progress.milestone.ta.toDouble(),
                         isAchieved = progress.isAchieved,
@@ -291,7 +292,7 @@ fun CardDetailScreen(
             if (perkProgress.isNotEmpty()) {
                 item {
                     Text(
-                        text = "Perk Progress",
+                        text = "Rewards",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
                     )
@@ -300,8 +301,9 @@ fun CardDetailScreen(
                 items(perkProgress) { progress ->
                     ExpandableMilestoneCard(
                         title = progress.perk.n,
-                        subtitle = progress.perk.rt,
+                        subtitle = rewardSummary(progress.perk.rt, progress.perk.up?.v, progress.perk.vp),
                         cycle = progress.perk.cy,
+                        rewardType = progress.perk.rt,
                         currentAmount = progress.currentAmount,
                         targetAmount = progress.perk.up?.v?.toDouble() ?: 0.0,
                         isAchieved = progress.isAchieved,
@@ -378,8 +380,9 @@ fun CardDetailScreen(
 @Composable
 fun ExpandableMilestoneCard(
     title: String,
-    subtitle: String,
-    cycle: String,
+    subtitle: String?,
+    cycle: String?,
+    rewardType: String? = null,
     currentAmount: Double,
     targetAmount: Double,
     isAchieved: Boolean,
@@ -405,7 +408,11 @@ fun ExpandableMilestoneCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${cycleLabel(cycle)} • ${timeRemainingLabel(cycle)} • $subtitle",
+                        text = listOfNotNull(
+                            cycleLabel(cycle),
+                            timeRemainingLabel(cycle),
+                            subtitle?.takeIf { it.isNotBlank() }
+                        ).joinToString(" • "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -426,7 +433,7 @@ fun ExpandableMilestoneCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "${formatCurrency(currentAmount)} / ${formatCurrency(targetAmount)}",
+                    text = progressText(currentAmount, targetAmount, rewardType),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -439,12 +446,6 @@ fun ExpandableMilestoneCard(
 
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
-                    Text(
-                        text = "Transactions counting toward this",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                     if (transactions.isEmpty()) {
                         Text(
                             text = "No qualifying transactions yet",
@@ -488,15 +489,14 @@ fun TransactionGroup(
         }
         Spacer(modifier = Modifier.height(4.dp))
         transactions.forEach { transaction ->
-            TransactionRow(transaction, countsTowardMilestone = true)
+            TransactionRow(transaction)
         }
     }
 }
 
 @Composable
 fun TransactionRow(
-    transaction: Transaction,
-    countsTowardMilestone: Boolean = false
+    transaction: Transaction
 ) {
     Row(
         modifier = Modifier
@@ -511,13 +511,6 @@ fun TransactionRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (countsTowardMilestone) {
-                Text(
-                    text = "Counts toward this milestone",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
         }
         Text(
             formatCurrency(transaction.amount),
@@ -526,17 +519,18 @@ fun TransactionRow(
     }
 }
 
-private fun cycleLabel(cycle: String): String {
+private fun cycleLabel(cycle: String?): String? {
     return when (cycle) {
         "m" -> "Monthly"
         "q" -> "Quarterly"
         "a" -> "Annual"
         "o" -> "Lifetime"
+        null, "" -> null
         else -> "Spend"
     }
 }
 
-private fun timeRemainingLabel(cycle: String): String {
+private fun timeRemainingLabel(cycle: String?): String? {
     val now = Calendar.getInstance()
     val end = Calendar.getInstance()
     when (cycle) {
@@ -551,7 +545,8 @@ private fun timeRemainingLabel(cycle: String): String {
             end.set(Calendar.MONTH, Calendar.DECEMBER)
             end.set(Calendar.DAY_OF_MONTH, 31)
         }
-        else -> return "No expiry"
+        "o" -> return null
+        else -> return null
     }
     end.set(Calendar.HOUR_OF_DAY, 23)
     end.set(Calendar.MINUTE, 59)
@@ -563,6 +558,29 @@ private fun timeRemainingLabel(cycle: String): String {
         daysLeft == 1L -> "1 day left"
         else -> "$daysLeft days left"
     }
+}
+
+private fun rewardSummary(rewardType: String?, limit: Int?, visits: Int?): String {
+    return when (rewardType) {
+        "p" -> limit?.let { "Up to ${formatCurrency(it.toDouble())}" } ?: "Points"
+        "rw" -> limit?.let { "Up to ${formatCurrency(it.toDouble())}" } ?: "Rewards"
+        "c" -> limit?.let { "Up to ${formatCurrency(it.toDouble())}" } ?: "Cashback"
+        "l" -> visits?.let { "Up to $it visits" } ?: "Lounge access"
+        "v" -> limit?.let { "Up to ${formatCurrency(it.toDouble())}" } ?: "Voucher"
+        "i" -> "Insurance benefits"
+        "mi" -> "Miles"
+        else -> "Rewards"
+    }
+}
+
+private fun progressText(currentAmount: Double, targetAmount: Double, rewardType: String?): String {
+    if (targetAmount <= 0.0) {
+        return when (rewardType) {
+            "l" -> "Usage tracked"
+            else -> formatCurrency(currentAmount)
+        }
+    }
+    return "${formatCurrency(currentAmount)} / ${formatCurrency(targetAmount)}"
 }
 
 private fun formatCurrency(amount: Double): String {

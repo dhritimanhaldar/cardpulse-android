@@ -251,14 +251,30 @@ fun AddCardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            viewModel.errorMessage.value?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
+
             Button(
                 onClick = { viewModel.saveCard(context, navController) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = viewModel.last4Digits.value.isNotBlank() &&
+                enabled = !viewModel.isSaving.value &&
+                        viewModel.last4Digits.value.isNotBlank() &&
                         viewModel.cardName.value.isNotBlank() &&
                         viewModel.selectedBank.value != null
             ) {
-                Text(if (editCardId != null) "Update Card" else "Add Card")
+                Text(
+                    when {
+                        viewModel.isSaving.value -> "Saving..."
+                        editCardId != null -> "Update Card"
+                        else -> "Add Card"
+                    }
+                )
             }
         }
     }

@@ -9,6 +9,7 @@ import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
+import com.cardpulse.app.util.cleanCardName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Date
@@ -71,17 +72,17 @@ class SmsReader(private val context: Context) {
             it.name.equals(bankName, ignoreCase = true)
         }
 
-        val cleanCardName = if (matchedBank != null) {
-            "${matchedBank.name} Card •$last4"
+        val cleanedCardName = if (matchedBank != null) {
+            cleanCardName("${matchedBank.name} Card", matchedBank.name)
         } else {
-            "$bankName Card •$last4"
+            cleanCardName("$bankName Card", bankName)
         }
 
         val cardColor = generateColorFromBank(matchedBank?.name ?: bankName)
 
         val card = Card(
             bankName = matchedBank?.name ?: bankName,
-            cardName = cleanCardName,
+            cardName = cleanedCardName,
             last4Digits = last4,
             cardType = "Credit Card",
             cardNetwork = matchedBank?.name ?: bankName,

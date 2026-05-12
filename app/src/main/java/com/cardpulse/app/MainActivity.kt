@@ -7,18 +7,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.cardpulse.app.auth.AuthManager
 import com.cardpulse.app.ui.screen.AddCardScreen
 import com.cardpulse.app.ui.screen.CardDetailScreen
 import com.cardpulse.app.ui.screen.DashboardScreen
+import com.cardpulse.app.ui.screen.LoginScreen
 import com.cardpulse.app.ui.theme.CardPulseTheme
-import com.cardpulse.app.viewmodel.AddCardViewModel
-import com.cardpulse.app.viewmodel.CardDetailViewModel
 import com.cardpulse.app.viewmodel.DashboardViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -41,8 +43,21 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CardPulseApp() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val authManager = remember { AuthManager(context) }
+    val startDestination = if (authManager.isSignedIn) "dashboard" else "login"
 
-    NavHost(navController = navController, startDestination = "dashboard") {
+    NavHost(navController = navController, startDestination = startDestination) {
+        composable("login") {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate("dashboard") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable("dashboard") {
             val dashboardViewModel: DashboardViewModel = viewModel(
                 factory = DashboardViewModel.factory(navController.context)

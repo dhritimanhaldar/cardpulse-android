@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -62,6 +65,7 @@ fun CardDetailScreen(
     val milestoneProgress by vm.milestoneProgressList.collectAsState()
     val transactions by vm.transactions.collectAsState()
     val loungeAccess = cardDetail?.loungeAccess
+    var showAllTransactions by remember { mutableStateOf(false) }
 
     LaunchedEffect(cardId) {
         vm.loadCard()
@@ -156,6 +160,110 @@ fun CardDetailScreen(
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
+
+            if (card.isAutoFetched && !card.isVerified) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Column(modifier = Modifier.padding(start = 12.dp)) {
+                                    Text(
+                                        text = "Auto-detected card - Please verify details",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Text(
+                                        text = "Edit to confirm the bank, card variant, and last four digits.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                }
+                            }
+                            Button(onClick = { navController.navigate("add_card/${card.id}") }) {
+                                Text("Edit")
+                            }
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (showAllTransactions) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = { showAllTransactions = false }
+                        ) {
+                            Text("Spend Progress")
+                        }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = { showAllTransactions = true }
+                        ) {
+                            Text("All Transactions")
+                        }
+                    } else {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = { showAllTransactions = false }
+                        ) {
+                            Text("Spend Progress")
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = { showAllTransactions = true }
+                        ) {
+                            Text("All Transactions")
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            if (showAllTransactions) {
+                item {
+                    Text(
+                        text = "All Transactions",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+
+                if (transactions.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No transactions found for this card.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    items(transactions) { transaction ->
+                        TransactionRow(transaction)
+                    }
+                }
+                return@LazyColumn
+            }
 
             item {
                 Text(
@@ -380,13 +488,16 @@ fun TransactionGroup(
         }
         Spacer(modifier = Modifier.height(4.dp))
         transactions.forEach { transaction ->
-            TransactionRow(transaction)
+            TransactionRow(transaction, countsTowardMilestone = true)
         }
     }
 }
 
 @Composable
-fun TransactionRow(transaction: Transaction) {
+fun TransactionRow(
+    transaction: Transaction,
+    countsTowardMilestone: Boolean = false
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -400,6 +511,13 @@ fun TransactionRow(transaction: Transaction) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (countsTowardMilestone) {
+                Text(
+                    text = "Counts toward this milestone",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         Text(
             formatCurrency(transaction.amount),

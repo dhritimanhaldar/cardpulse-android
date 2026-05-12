@@ -31,6 +31,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,7 +50,14 @@ fun DashboardScreen(
 ) {
     val cardsWithProgress by viewModel.cardsWithProgress.collectAsState()
     val cards = cardsWithProgress.map { it.card }
-    val hasUnverifiedCards = cards.any { it.isAutoFetched && !it.isVerified }
+    val unverifiedCards = cards.filter { it.isAutoFetched && !it.isVerified }
+    val hasUnverifiedCards = unverifiedCards.isNotEmpty()
+    var showOnlyUnverified by remember { mutableStateOf(false) }
+    val visibleCards = if (showOnlyUnverified) {
+        cardsWithProgress.filter { it.card.isAutoFetched && !it.card.isVerified }
+    } else {
+        cardsWithProgress
+    }
 
     Scaffold(
         topBar = {
@@ -74,9 +84,7 @@ fun DashboardScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                         .clickable {
-                            cards.firstOrNull { it.isAutoFetched && !it.isVerified }?.let { card ->
-                                navController.navigate("add_card/${card.id}")
-                            }
+                            showOnlyUnverified = true
                         },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -95,13 +103,13 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Verify Your Cards",
+                                "You have ${unverifiedCards.size} unverified auto-detected card(s)",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "Tap to verify and complete card details for accurate tracking.",
+                                "Tap to review.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
@@ -120,7 +128,7 @@ fun DashboardScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(cardsWithProgress) { item ->
+                items(visibleCards) { item ->
                     CardItem(
                         card = item.card,
                         onClick = { navController.navigate("card_detail/${item.card.id}") }

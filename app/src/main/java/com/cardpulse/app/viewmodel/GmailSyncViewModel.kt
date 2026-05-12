@@ -17,6 +17,7 @@ import com.cardpulse.app.parser.CardDetectionParser
 import com.cardpulse.app.parser.EmailTransactionParser
 import com.cardpulse.app.parser.SmsTransactionParser
 import com.cardpulse.app.parser.StatementEmailParser
+import com.cardpulse.app.util.cleanCardName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -62,7 +63,7 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                             Card(
                                 id = 0,
                                 bankName = detected.bankName,
-                                cardName = detected.cardName,
+                                cardName = cleanCardName(detected.cardName, detected.bankName),
                                 last4Digits = detected.last4,
                                 cardType = detected.cardType,
                                 cardNetwork = detected.bankName,
@@ -133,7 +134,7 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                                     Card(
                                         id = 0,
                                         bankName = geminiResult.bankName,
-                                        cardName = "${geminiResult.bankName} Card",
+                                        cardName = cleanCardName("${geminiResult.bankName} Card", geminiResult.bankName),
                                         last4Digits = geminiResult.last4,
                                         cardType = "Credit Card",
                                         cardNetwork = geminiResult.bankName,

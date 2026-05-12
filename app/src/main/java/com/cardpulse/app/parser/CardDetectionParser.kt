@@ -1,6 +1,7 @@
 package com.cardpulse.app.parser
 
 import com.cardpulse.app.data.RawEmailData
+import com.cardpulse.app.util.cleanCardName
 
 object CardDetectionParser {
 
@@ -92,7 +93,7 @@ object CardDetectionParser {
             val last4 = extractLast4(text) ?: continue
             if (detected.containsKey(last4)) continue
             val bankName = extractBankName(text, email.from) ?: continue
-            val cardName = extractCardName(text) ?: "$bankName Card"
+            val cardName = cleanCardName(extractCardName(text) ?: "$bankName Card", bankName)
             val cardType = when {
                 text.contains(Regex("""\bdebit\b""", RegexOption.IGNORE_CASE)) &&
                 !text.contains(Regex("""\bcredit\b""", RegexOption.IGNORE_CASE)) -> "Debit Card"

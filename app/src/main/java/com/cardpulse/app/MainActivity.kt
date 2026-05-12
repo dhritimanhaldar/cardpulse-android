@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +23,8 @@ import com.cardpulse.app.ui.screen.DashboardScreen
 import com.cardpulse.app.ui.screen.LoginScreen
 import com.cardpulse.app.ui.theme.CardPulseTheme
 import com.cardpulse.app.viewmodel.DashboardViewModel
+import com.cardpulse.app.viewmodel.GmailSyncViewModel
+import com.cardpulse.app.worker.scheduleSmsSync
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
@@ -62,6 +65,11 @@ fun CardPulseApp() {
             val dashboardViewModel: DashboardViewModel = viewModel(
                 factory = DashboardViewModel.factory(navController.context)
             )
+            val gmailSyncViewModel: GmailSyncViewModel = viewModel()
+            LaunchedEffect(Unit) {
+                scheduleSmsSync(navController.context)
+                gmailSyncViewModel.autoSyncOnce()
+            }
             DashboardScreen(
                 navController = navController,
                 viewModel = dashboardViewModel

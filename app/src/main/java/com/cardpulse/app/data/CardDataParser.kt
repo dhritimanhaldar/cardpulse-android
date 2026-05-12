@@ -17,7 +17,10 @@ object CardDataParser {
         val candidates = mutableListOf<Triple<CardEntry, BankEntry, GroupEntry>>()
 
         for (bank in root.banks) {
-            if (bankHint != null && !bank.b.contains(bankHint, ignoreCase = true)) continue
+            if (bankHint != null &&
+                !bank.b.contains(bankHint, ignoreCase = true) &&
+                !bankHint.contains(bank.b, ignoreCase = true)
+            ) continue
             val bankBin = matchesBin(bank.bn, cardPrefix)
 
             bank.g.orEmpty().forEach { group ->
@@ -48,16 +51,26 @@ object CardDataParser {
     fun searchCards(root: CardDataRoot, query: String): List<ResolvedCard> {
         val results = mutableListOf<ResolvedCard>()
         val lq = query.lowercase()
+        val nq = normalize(query)
 
         for (bank in root.banks) {
             bank.g.orEmpty().forEach { group ->
                 group.c.orEmpty().forEach { card ->
-                    if ("${bank.b} ${group.n} ${card.n}".lowercase().contains(lq)) {
+                    val haystack = "${bank.b} ${group.n} ${card.n}".lowercase()
+                    val normalizedHaystack = normalize(haystack)
+                    if (haystack.contains(lq) ||
+                        normalizedHaystack.contains(nq) ||
+                        tokenMatch(query, haystack) ||
+                        queryMatchesParts(nq, bank, group, card)
+                    ) {
                         results.add(resolveCard(bank, group, card))
                     }
                 }
 
-                if (group.c.isNullOrEmpty() && "${bank.b} ${group.n}".lowercase().contains(lq)) {
+                val groupHaystack = "${bank.b} ${group.n}".lowercase()
+                if (group.c.isNullOrEmpty() &&
+                    (groupHaystack.contains(lq) || normalize(groupHaystack).contains(nq) || tokenMatch(query, groupHaystack))
+                ) {
                     val pseudo = CardEntry(
                         n = group.n,
                         bn = group.bn
@@ -68,6 +81,20 @@ object CardDataParser {
         }
 
         return results
+    }
+
+    private fun queryMatchesParts(query: String, bank: BankEntry, group: GroupEntry, card: CardEntry): Boolean {
+        val bankName = normalize(bank.b)
+        val groupName = normalize(group.n)
+        val cardName = normalize(card.n)
+        val withoutBankWord = query
+            .removePrefix(bankName)
+            .removePrefix(bankName.removeSuffix("bank"))
+        return query.contains(bankName.removeSuffix("bank")) &&
+                (cardName.contains(withoutBankWord) ||
+                        withoutBankWord.contains(cardName) ||
+                        cardName.contains(groupName) ||
+                        query.contains(groupName))
     }
 
     fun resolveCard(bank: BankEntry, group: GroupEntry, card: CardEntry): ResolvedCard {
@@ -108,5 +135,18 @@ object CardDataParser {
         bn.px.orEmpty().forEach { if (prefix.startsWith(it)) return true }
         bn.rg.orEmpty().forEach { if (prefix >= it.f && prefix <= it.t) return true }
         return false
+    }
+
+    private fun normalize(value: String): String {
+        return value.lowercase().replace(Regex("[^a-z0-9]"), "")
+    }
+
+    private fun tokenMatch(query: String, haystack: String): Boolean {
+        val ignored = setOf("bank", "card", "credit", "ltd", "limited")
+        val tokens = query.lowercase()
+            .split(Regex("[^a-z0-9]+"))
+            .filter { it.length >= 3 && it !in ignored }
+        if (tokens.isEmpty()) return false
+        return tokens.all { haystack.contains(it, ignoreCase = true) }
     }
 }

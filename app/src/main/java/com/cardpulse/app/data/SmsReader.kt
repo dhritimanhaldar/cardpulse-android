@@ -1,10 +1,13 @@
 package com.cardpulse.app.data
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.provider.Telephony
-import com.cardpulse.app.data.dao.CardDao
+import android.util.Log
+import androidx.core.content.ContextCompat
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
@@ -17,6 +20,48 @@ import java.util.Date
 class SmsReader(private val context: Context) {
 
     private val repository = CardRepository(context)
+
+    suspend fun parseTransactionsForCard(card: Card): List<Transaction> = withContext(Dispatchers.IO) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            Log.w("SmsReader", "READ_SMS permission not granted")
+            return@withContext emptyList()
+        }
+
+        val transactions = mutableListOf<Transaction>()
+        val oneYearAgo = System.currentTimeMillis() - (365L * 24 * 60 * 60 * 1000)
+        val cursor = context.contentResolver.query(
+            Telephony.Sms.CONTENT_URI,
+            arrayOf("address", "body", "date"),
+            "${Telephony.Sms.DATE} > ?",
+            arrayOf(oneYearAgo.toString()),
+            "${Telephony.Sms.DATE} DESC"
+        )
+
+        cursor?.use {
+            while (it.moveToNext()) {
+                val address = it.getString(it.getColumnIndexOrThrow("address")) ?: continue
+                val body = it.getString(it.getColumnIndexOrThrow("body")) ?: continue
+                val dateMillis = it.getLong(it.getColumnIndexOrThrow("date"))
+
+                if (!isLikelyFromBank(address, card.bankName) && !body.contains(card.bankName, ignoreCase = true)) {
+                    continue
+                }
+
+                val last4 = extractLast4Digits(body) ?: continue
+                if (last4 != card.last4Digits) continue
+
+                val transaction = parseTransactionSms(body, address, dateMillis, card.id)
+                transaction?.let { txn ->
+                    val existing = repository.getTransactionByDetails(card.id, txn.amount, txn.date)
+                    if (existing == null) {
+                        transactions.add(txn)
+                    }
+                }
+            }
+        }
+
+        transactions
+    }
 
     suspend fun readTransactionSms(): List<Transaction> = withContext(Dispatchers.IO) {
         val transactions = mutableListOf<Transaction>()
@@ -136,21 +181,21 @@ class SmsReader(private val context: Context) {
     }
 
     private fun parseTransactionSms(body: String, sender: String, dateMillis: Long): Transaction? {
+        return parseTransactionSms(body, sender, dateMillis, 0)
+    }
+
+    private fun parseTransactionSms(body: String, sender: String, dateMillis: Long, cardId: Int): Transaction? {
         val amountPattern = """(?:Rs\.?|INR)\s*([0-9,]+\.?\d*)""".toRegex()
         val amountMatch = amountPattern.find(body)
         val amount = amountMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
 
-        val last4Pattern = """(?:XX|ending\s+|card\s+)(\d{4})""".toRegex()
-        val last4 = last4Pattern.find(body)?.groupValues?.get(1) ?: "XXXX"
-
-        val merchantPattern = """at\s+([A-Z\s]+)""".toRegex()
-        val merchant = merchantPattern.find(body)?.groupValues?.get(1)?.trim() ?: "Unknown"
+        val merchant = extractMerchant(body) ?: "Unknown"
 
         return Transaction(
-            cardId = 0,
+            cardId = cardId,
             amount = amount,
             merchant = merchant,
-            category = "General",
+            category = categorizeTransaction(merchant, body),
             date = dateMillis,
             source = TransactionSource.SMS,
             rawText = body,
@@ -165,8 +210,47 @@ class SmsReader(private val context: Context) {
     }
 
     private fun extractLast4Digits(body: String): String? {
-        val last4Pattern = """(?:XX|ending\s+|card\s+)(\d{4})""".toRegex()
-        return last4Pattern.find(body)?.groupValues?.get(1)
+        val patterns = listOf(
+            """(?:ending\s+(?:in|with)?\s*)(\d{4})""".toRegex(RegexOption.IGNORE_CASE),
+            """(?:XX|xx|X{2,}|x{2,}|\*{2,})\s*(\d{4})""".toRegex(),
+            """card\s+(?:no\.?\s*)?(?:ending\s*)?(\d{4})""".toRegex(RegexOption.IGNORE_CASE),
+            """(?:card|a/c|account)[^\d]*(\d{4})""".toRegex(RegexOption.IGNORE_CASE)
+        )
+        return patterns.firstNotNullOfOrNull { it.find(body)?.groupValues?.get(1) }
+    }
+
+    private fun extractMerchant(body: String): String? {
+        val patterns = listOf(
+            """(?:at|to|for)\s+([A-Z][A-Za-z0-9\s&'._-]{2,35})""".toRegex(),
+            """merchant\s*[:\-]\s*([A-Za-z0-9\s&'._-]{2,35})""".toRegex(RegexOption.IGNORE_CASE)
+        )
+        return patterns.firstNotNullOfOrNull { pattern ->
+            pattern.find(body)?.groupValues?.get(1)?.trim()?.trim('.', ',', '-')
+        }
+    }
+
+    private fun categorizeTransaction(merchant: String, body: String): String {
+        val text = "$merchant $body".lowercase()
+        return when {
+            text.contains("uber") || text.contains("ola") || text.contains("rapido") -> "Transport"
+            text.contains("swiggy") || text.contains("zomato") || text.contains("restaurant") || text.contains("dining") -> "Dining"
+            text.contains("amazon") || text.contains("flipkart") || text.contains("shopping") -> "Shopping"
+            text.contains("irctc") || text.contains("makemytrip") || text.contains("goibibo") || text.contains("travel") -> "Travel"
+            text.contains("netflix") || text.contains("prime") || text.contains("hotstar") -> "Entertainment"
+            text.contains("electricity") || text.contains("water") || text.contains("gas") -> "Utilities"
+            text.contains("fuel") || text.contains("petrol") || text.contains("diesel") -> "Fuel"
+            text.contains("insurance") || text.contains("premium") -> "Insurance"
+            else -> "Others"
+        }
+    }
+
+    private fun isLikelyFromBank(sender: String, bankName: String): Boolean {
+        val senderLower = sender.lowercase()
+        val compactBank = bankName.lowercase().replace(Regex("[^a-z0-9]"), "")
+        return senderLower.contains(compactBank) ||
+                compactBank.split("bank", "card").filter { it.length >= 3 }.any { senderLower.contains(it) } ||
+                senderLower.contains("card") ||
+                senderLower.contains("bank")
     }
 
     private fun mapSenderToBank(sender: String): String? {

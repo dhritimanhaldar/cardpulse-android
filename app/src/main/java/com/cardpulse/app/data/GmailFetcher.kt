@@ -17,7 +17,7 @@ import javax.net.ssl.HttpsURLConnection
 
 class GmailFetcher(private val context: Context) {
 
-    private val scope = "oauth2:${AppConfig.GMAIL_SCOPE}"
+    private val scope = "oauth2:${AppConfig.GMAIL_SCOPE} ${AppConfig.GMAIL_LABELS_SCOPE}"
 
     suspend fun fetchTransactionEmails(cardLast4: List<String>): List<RawEmailData> =
         withContext(Dispatchers.IO) {
@@ -33,17 +33,41 @@ class GmailFetcher(private val context: Context) {
                     append("subject:(\"transaction alert\" OR \"debit alert\" OR \"credit alert\" OR \"payment alert\" OR \"amount debited\" OR \"has been debited\" OR \"has been credited\" OR \"spent on\" OR \"purchase of\" OR \"payment of\" OR \"transaction on\")")
                     append(") after:$afterDate")
                 }
-                val ids = listMessageIds(token, query)
-                ids.take(AppConfig.GMAIL_FETCH_LIMIT).mapNotNull { id ->
-                    fetchEmailBody(token, id)?.also { email ->
-                        Log.d("GmailFetcher", "Email from: ${email.from} | Subject: ${email.subject}")
-                    }
-                }
+                fetchEmailsForQuery(token, query)
             } catch (e: Exception) {
                 Log.e("GmailFetcher", "Fetch error: ${e.message}")
                 emptyList()
             }
         }
+
+    suspend fun fetchStatementEmails(): List<RawEmailData> = withContext(Dispatchers.IO) {
+        try {
+            val account = GoogleSignIn.getLastSignedInAccount(context)
+                ?: return@withContext emptyList()
+            val token = GoogleAuthUtil.getToken(context, account.account!!, scope)
+            val lookbackMs = AppConfig.GMAIL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000L
+            val afterDate = (System.currentTimeMillis() - lookbackMs) / 1000
+            val query = buildString {
+                append("(")
+                append("subject:(statement OR \"credit card statement\" OR e-statement OR \"bill generated\") ")
+                append("OR (\"credit limit\" OR \"available credit\" OR \"total amount due\" OR \"payment due date\")")
+                append(") after:$afterDate")
+            }
+            fetchEmailsForQuery(token, query)
+        } catch (e: Exception) {
+            Log.e("GmailFetcher", "Statement fetch error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun fetchEmailsForQuery(token: String, query: String): List<RawEmailData> {
+        val ids = listMessageIds(token, query)
+        return ids.take(AppConfig.GMAIL_FETCH_LIMIT).mapNotNull { id ->
+            fetchEmailBody(token, id)?.also { email ->
+                Log.d("GmailFetcher", "Email from: ${email.from} | Subject: ${email.subject}")
+            }
+        }
+    }
 
     private fun listMessageIds(token: String, query: String): List<String> {
         val url = URL("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${

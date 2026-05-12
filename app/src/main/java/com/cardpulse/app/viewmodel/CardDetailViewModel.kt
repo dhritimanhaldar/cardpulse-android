@@ -70,8 +70,7 @@ class CardDetailViewModel(
                 _transactions.value = allTxns
 
                 detail?.card?.let { card ->
-                    val resolved = repository.matchCardByBin(card.last4Digits.padStart(6, '0'))
-                        ?: repository.searchCardsInCatalog("${card.bankName} ${card.cardName}").firstOrNull()
+                    val resolved = repository.matchCardFromCatalog(card)
 
                     resolved?.let { rc ->
                         Log.d("CardDetailViewModel", "Matched card: ${rc.bankName} ${rc.cardName}")
@@ -106,9 +105,9 @@ class CardDetailViewModel(
                 if (cap.t == "sp") currentAmount = currentAmount.coerceAtMost(cap.v.toDouble())
             }
 
-            val targetAmount = perk.up?.v?.toDouble() ?: return@mapNotNull null
-            val progress = (currentAmount / targetAmount).toFloat().coerceIn(0f, 1f)
-            val isAchieved = currentAmount >= targetAmount
+            val targetAmount = perk.up?.v?.toDouble() ?: 0.0
+            val progress = if (targetAmount <= 0.0) 0f else (currentAmount / targetAmount).toFloat().coerceIn(0f, 1f)
+            val isAchieved = targetAmount > 0.0 && currentAmount >= targetAmount
 
             PerkProgress(perk, qualifyingTxns, currentAmount, progress, isAchieved)
         }

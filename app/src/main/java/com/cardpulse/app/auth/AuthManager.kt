@@ -29,7 +29,7 @@ class AuthManager(private val context: Context) {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(AppConfig.GOOGLE_WEB_CLIENT_ID)
             .requestEmail()
-            .requestScopes(Scope(AppConfig.GMAIL_SCOPE))
+            .requestScopes(Scope(AppConfig.GMAIL_SCOPE), Scope(AppConfig.GMAIL_LABELS_SCOPE))
             .build()
         GoogleSignIn.getClient(context, gso)
     }

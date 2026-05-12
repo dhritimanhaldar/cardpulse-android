@@ -7,6 +7,8 @@ import com.cardpulse.app.model.ResolvedCard
 import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.model.Transaction
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class CardRepository(private val context: Context) {
@@ -60,12 +62,38 @@ class CardRepository(private val context: Context) {
         CardDataParser.searchCards(catalog, query)
     }
 
+    suspend fun matchCardFromCatalog(card: Card): ResolvedCard? = withContext(Dispatchers.IO) {
+        val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext null
+        CardDataParser.matchCard(catalog, card.last4Digits.padStart(6, '0'), card.bankName, card.cardName)
+            ?: CardDataParser.searchCards(catalog, "${card.bankName} ${card.cardName}").firstOrNull()
+    }
+
     suspend fun getAllCards(): List<Card> = withContext(Dispatchers.IO) {
         cardDao.getAllCards()
     }
 
     suspend fun getAllCardsSync(): List<Card> = withContext(Dispatchers.IO) {
         cardDao.getAllCardsSync()
+    }
+
+    fun getActiveCardsFlow(): Flow<List<Card>> = cardDao.getActiveCardsFlow()
+
+    fun getAllCardsWithProgressFlow(): Flow<List<CardWithProgress>> {
+        return cardDao.getActiveCardsFlow().map { cards ->
+            cards.map { card ->
+                val rules = spendRuleDao.getRulesForCard(card.id)
+                val txns = transactionDao.getTransactionsForCard(card.id)
+                val lounge = db.loungeDao().getLoungeForCard(card.id)
+                val totalSpent = txns.filter { !it.isCredit }.sumOf { it.amount }
+                CardWithProgress(
+                    card = card,
+                    spendRules = rules,
+                    totalSpentThisCycle = totalSpent,
+                    recentTransactions = txns.take(10),
+                    loungeAccess = lounge
+                )
+            }
+        }
     }
 
     suspend fun insertCard(card: Card): Long = withContext(Dispatchers.IO) {
@@ -102,6 +130,15 @@ class CardRepository(private val context: Context) {
     suspend fun getTransactionByEmailId(emailId: String): Transaction? = withContext(Dispatchers.IO) {
         transactionDao.getTransactionByEmailId(emailId)
     }
+
+    suspend fun getCardByDetails(bank: String, name: String, last4: String): Card? = withContext(Dispatchers.IO) {
+        cardDao.getCardByDetails(bank, name, last4)
+    }
+
+    suspend fun getTransactionByDetails(cardId: Int, amount: Double, date: Long): Transaction? =
+        withContext(Dispatchers.IO) {
+            transactionDao.getTransactionByDetails(cardId, amount, date)
+        }
 
     suspend fun insertTransaction(txn: Transaction): Long = withContext(Dispatchers.IO) {
         transactionDao.insertTransaction(txn)

@@ -12,6 +12,7 @@ object AppConfig {
         "121179538388-vpdcj6rvmfqqgrmntfpsoj2ebo685evi.apps.googleusercontent.com"
 
     const val GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+    const val GMAIL_LABELS_SCOPE = "https://www.googleapis.com/auth/gmail.labels"
     const val GMAIL_FETCH_LIMIT = 100
     const val GMAIL_LOOKBACK_DAYS = 90L
 

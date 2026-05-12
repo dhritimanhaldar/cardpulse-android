@@ -34,17 +34,14 @@ class AuthManager(private val context: Context) {
         GoogleSignIn.getClient(context, gso)
     }
 
-    // ─── Current user ──────────────────────────────────────────
     val currentUser: FirebaseUser?
         get() = firebaseAuth.currentUser
 
     val isSignedIn: Boolean
         get() = firebaseAuth.currentUser != null
 
-    // ─── Sign-in intent to launch ──────────────────────────────
     fun getSignInIntent(): Intent = googleSignInClient.signInIntent
 
-    // ─── Handle result from Google sign-in activity ────────────
     suspend fun handleSignInResult(result: ActivityResult): AuthResult {
         return try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
@@ -57,7 +54,6 @@ class AuthManager(private val context: Context) {
         }
     }
 
-    // ─── Firebase authentication with Google credential ────────
     private suspend fun firebaseWithGoogle(idToken: String): AuthResult {
         return try {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
@@ -69,13 +65,11 @@ class AuthManager(private val context: Context) {
         }
     }
 
-    // ─── Sign out ──────────────────────────────────────────────
     suspend fun signOut() {
         firebaseAuth.signOut()
         googleSignInClient.signOut().await()
     }
 
-    // ─── Get Gmail access token for API calls ──────────────────
     fun getGmailAccount(): GoogleSignInAccount? {
         return GoogleSignIn.getLastSignedInAccount(context)
     }

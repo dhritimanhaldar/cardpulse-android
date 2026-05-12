@@ -2,49 +2,46 @@ package com.cardpulse.app.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
 import java.util.Date
 
-// ─── Card ──────────────────────────────────────────────────────
 @Entity(tableName = "cards")
 data class Card(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val bankName: String,
     val cardName: String,
     val last4Digits: String,
-    val cardType: String,           // VISA / MASTERCARD / RUPAY / AMEX
-    val cardNetwork: String,        // e.g. "HDFC Infinia", "Axis Magnus"
+    val cardType: String,
+    val cardNetwork: String,
     val creditLimit: Double,
-    val billingCycleDay: Int,       // day of month billing cycle resets
-    val statementDay: Int,          // day statement is generated
-    val dueDateOffset: Int,         // days after statement day payment is due
+    val billingCycleDay: Int,
+    val statementDay: Int,
+    val dueDateOffset: Int,
     val annualFee: Double,
     val isAutoFetched: Boolean = false,
     val isVerified: Boolean = false,
     val isActive: Boolean = true,
-    val addedOn: Date = Date(),
-    val color: String = "#1A73E8",   // hex color for card UI
+    val addedOn: Long = System.currentTimeMillis(),
+    val color: String = "#1A73E8",
     val currentOutstanding: Double = 0.0,
     val minimumDue: Double = 0.0,
     val paymentDueDate: String? = null
 )
 
-// ─── Transaction ───────────────────────────────────────────────
 @Entity(tableName = "transactions")
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val cardId: Int,
     val amount: Double,
     val merchant: String,
-    val category: String,           // FOOD / TRAVEL / SHOPPING / FUEL / etc.
-    val date: Date,
+    val category: String,
+    val date: Long = System.currentTimeMillis(),
     val source: TransactionSource = TransactionSource.MANUAL,
-    val rawText: String = "",       // original SMS or email text
+    val rawText: String = "",
     val rawEmailId: String? = null,
     val status: TransactionStatus = TransactionStatus.CONFIRMED,
     val isCredit: Boolean = false,
-    val isFlagged: Boolean = false, // fraud / duplicate flag
-    val flagReason: String? = "",   // reason if flagged
+    val isFlagged: Boolean = false,
+    val flagReason: String? = "",
     val currency: String = "INR",
     val isInternational: Boolean = false
 )
@@ -52,22 +49,20 @@ data class Transaction(
 enum class TransactionSource { MANUAL, GMAIL, SMS }
 enum class TransactionStatus { CONFIRMED, PENDING, FLAGGED }
 
-// ─── Spend Rule ────────────────────────────────────────────────
 @Entity(tableName = "spend_rules")
 data class SpendRule(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val cardId: Int,
-    val ruleName: String,           // e.g. "Milestone 1 - Spend ₹1.5L"
+    val ruleName: String,
     val targetAmount: Double,
     val currentAmount: Double = 0.0,
-    val reward: String,             // e.g. "10,000 bonus points"
-    val rewardType: String,         // POINTS / CASHBACK / VOUCHER / LOUNGE
-    val cycleType: String,          // MONTHLY / QUARTERLY / ANNUAL
+    val reward: String,
+    val rewardType: String,
+    val cycleType: String,
     val isAchieved: Boolean = false,
-    val resetDay: Int = 1           // day of month the cycle resets
+    val resetDay: Int = 1
 )
 
-// ─── Lounge Access ─────────────────────────────────────────────
 @Entity(tableName = "lounge_access")
 data class LoungeAccess(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -75,24 +70,22 @@ data class LoungeAccess(
     val totalVisitsAllowed: Int,
     val visitsUsed: Int = 0,
     val visitsRemaining: Int,
-    val resetPeriod: String,        // QUARTERLY / ANNUAL
-    val lastVisitDate: Date? = null,
-    val loungeNetwork: String       // DREAMFOLKS / PRIORITY_PASS / DINERS
+    val resetPeriod: String,
+    val lastVisitDate: Long? = null,
+    val loungeNetwork: String
 )
 
-// ─── Notification Log ──────────────────────────────────────────
 @Entity(tableName = "notification_log")
 data class NotificationLog(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val cardId: Int,
     val title: String,
     val message: String,
-    val type: String,               // MILESTONE / FRAUD / DUE_DATE / LOUNGE
-    val sentAt: Date = Date(),
+    val type: String,
+    val sentAt: Long = System.currentTimeMillis(),
     val isRead: Boolean = false
 )
 
-// ─── UI State Models (not stored in DB) ────────────────────────
 data class CardWithProgress(
     val card: Card,
     val spendRules: List<SpendRule>,

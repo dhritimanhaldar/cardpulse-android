@@ -1,8 +1,10 @@
 package com.cardpulse.app.viewmodel
 
 import android.content.Context
-import androidx.lifecycle.*
 import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.cardpulse.app.data.CardRepository
 import com.cardpulse.app.model.CardWithProgress
 import com.cardpulse.app.model.Milestone
@@ -33,18 +35,19 @@ class CardDetailViewModel(
         val isAchieved: Boolean
     )
 
+    data class MilestoneProgress(
+        val milestone: Milestone,
+        val qualifyingTxns: List<Transaction>,
+        val currentAmount: Double,
+        val progress: Float,
+        val isAchieved: Boolean
+    )
+
     private val _perkProgressList = MutableStateFlow<List<PerkProgress>>(emptyList())
     val perkProgressList: StateFlow<List<PerkProgress>> = _perkProgressList
 
     private val _milestoneProgressList = MutableStateFlow<List<MilestoneProgress>>(emptyList())
     val milestoneProgressList: StateFlow<List<MilestoneProgress>> = _milestoneProgressList
-
-    data class MilestoneProgress(
-        val milestone: Milestone,
-        val currentAmount: Double,
-        val progress: Float,
-        val isAchieved: Boolean
-    )
 
     private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
     val transactions: StateFlow<List<Transaction>> = _transactions
@@ -63,31 +66,18 @@ class CardDetailViewModel(
             try {
                 val detail = repository.getCardWithProgress(cardId)
                 _cardDetail.value = detail
-
                 val allTxns = repository.getTransactionsForCard(cardId)
                 _transactions.value = allTxns
 
-                // Load ResolvedCard for perks/milestones
                 detail?.card?.let { card ->
-                    // Try BIN match first
-                    var resolved = repository.matchCardByBin(
-                        card.last4Digits.padStart(6, '0'),
-                        card.bankName,
-                        card.cardName
-                    )
-
-                    // Fallback: search by name if BIN fails
-                    if (resolved == null) {
-                        val searchResults = repository.searchCardsInCatalog("${card.bankName} ${card.cardName}")
-                        resolved = searchResults.firstOrNull()
-                    }
+                    val resolved = repository.matchCardByBin(card.last4Digits.padStart(6, '0'))
+                        ?: repository.searchCardsInCatalog("${card.bankName} ${card.cardName}").firstOrNull()
 
                     resolved?.let { rc ->
-                        Log.d("CardDetailViewModel", "Matched card: ${rc.bankName} ${rc.cardName}, ${rc.perks.size} perks, ${rc.milestones.size} milestones")
+                        Log.d("CardDetailViewModel", "Matched card: ${rc.bankName} ${rc.cardName}")
                         calculatePerkProgress(rc.perks, allTxns)
                         calculateMilestoneProgress(rc.milestones, allTxns)
                     } ?: run {
-                        Log.w("CardDetailViewModel", "No match found for ${card.bankName} ${card.cardName}. Using defaults.")
                         val (defaultPerks, defaultMilestones) = com.cardpulse.app.data.CardCatalogLoader.getDefaultPerksAndMilestones()
                         calculatePerkProgress(defaultPerks, allTxns)
                         calculateMilestoneProgress(defaultMilestones, allTxns)
@@ -107,22 +97,16 @@ class CardDetailViewModel(
             val cycleStart = getCycleStart(perk.cy)
 
             val qualifyingTxns = txns.filter { txn ->
-                !txn.isCredit &&
-                        txn.status == TransactionStatus.CONFIRMED &&
-                        txn.amount >= minThreshold &&
-                        txn.date >= cycleStart
+                transactionCountsTowardPerk(txn, perk, cycleStart.time, minThreshold)
             }
 
             var currentAmount = qualifyingTxns.sumOf { it.amount }
 
-            // Apply upto cap if present
             perk.up?.let { cap ->
                 if (cap.t == "sp") currentAmount = currentAmount.coerceAtMost(cap.v.toDouble())
             }
 
-            val targetAmount = perk.up?.v?.toDouble() ?: Double.MAX_VALUE
-            if (targetAmount == Double.MAX_VALUE) return@mapNotNull null
-
+            val targetAmount = perk.up?.v?.toDouble() ?: return@mapNotNull null
             val progress = (currentAmount / targetAmount).toFloat().coerceIn(0f, 1f)
             val isAchieved = currentAmount >= targetAmount
 
@@ -134,29 +118,76 @@ class CardDetailViewModel(
     private fun calculateMilestoneProgress(milestones: List<Milestone>, txns: List<Transaction>) {
         val progressList = milestones.map { milestone ->
             val cycleStart = getCycleStart(milestone.cy)
-            val qualifyingTxns = txns.filter { !it.isCredit && it.date >= cycleStart }
+            val qualifyingTxns = txns.filter { transactionCountsTowardMilestone(it, cycleStart.time) }
             val currentAmount = qualifyingTxns.sumOf { it.amount }
             val targetAmount = milestone.ta.toDouble()
             val progress = (currentAmount / targetAmount).toFloat().coerceIn(0f, 1f)
             val isAchieved = currentAmount >= targetAmount
 
-            MilestoneProgress(milestone, currentAmount, progress, isAchieved)
+            MilestoneProgress(milestone, qualifyingTxns, currentAmount, progress, isAchieved)
         }
         _milestoneProgressList.value = progressList
+    }
+
+    fun groupTransactionsByPerk(
+        transactions: List<Transaction>,
+        perks: List<Perk>
+    ): Map<Perk, List<Transaction>> {
+        return perks.associateWith { perk ->
+            val cycleStart = getCycleStart(perk.cy)
+            val minThreshold = perk.mn ?: 0
+            transactions.filter { transactionCountsTowardPerk(it, perk, cycleStart.time, minThreshold) }
+        }
+    }
+
+    fun calculatePerkProgress(
+        transactions: List<Transaction>,
+        perk: Perk
+    ): Double {
+        val cycleStart = getCycleStart(perk.cy)
+        val minThreshold = perk.mn ?: 0
+        return transactions
+            .filter { transactionCountsTowardPerk(it, perk, cycleStart.time, minThreshold) }
+            .sumOf { it.amount }
+    }
+
+    private fun transactionCountsTowardMilestone(txn: Transaction, cycleStartMillis: Long): Boolean {
+        return !txn.isCredit &&
+                txn.status == TransactionStatus.CONFIRMED &&
+                !txn.category.equals("Payment", ignoreCase = true) &&
+                txn.date >= cycleStartMillis
+    }
+
+    private fun transactionCountsTowardPerk(
+        txn: Transaction,
+        perk: Perk,
+        cycleStartMillis: Long,
+        minThreshold: Int
+    ): Boolean {
+        if (!transactionCountsTowardMilestone(txn, cycleStartMillis)) return false
+        if (txn.amount < minThreshold) return false
+
+        val excludedTerms = perk.x.orEmpty().map { it.trim().lowercase() }.filter { it.isNotBlank() }
+        val category = txn.category.lowercase()
+        val merchant = txn.merchant.lowercase()
+
+        return excludedTerms.none { excluded ->
+            category.contains(excluded) || merchant.contains(excluded)
+        }
     }
 
     private fun getCycleStart(cycleType: String): Date {
         val cal = Calendar.getInstance()
         return when (cycleType) {
-            "o" -> Date(0) // one-time: include all
-            "m" -> { // monthly
+            "o" -> Date(0)
+            "m" -> {
                 cal.set(Calendar.DAY_OF_MONTH, 1)
                 cal.set(Calendar.HOUR_OF_DAY, 0)
                 cal.set(Calendar.MINUTE, 0)
                 cal.set(Calendar.SECOND, 0)
                 cal.time
             }
-            "q" -> { // quarterly
+            "q" -> {
                 val month = cal.get(Calendar.MONTH)
                 val quarterStart = (month / 3) * 3
                 cal.set(Calendar.MONTH, quarterStart)
@@ -166,7 +197,7 @@ class CardDetailViewModel(
                 cal.set(Calendar.SECOND, 0)
                 cal.time
             }
-            "a" -> { // annual
+            "a" -> {
                 cal.set(Calendar.MONTH, Calendar.JANUARY)
                 cal.set(Calendar.DAY_OF_MONTH, 1)
                 cal.set(Calendar.HOUR_OF_DAY, 0)

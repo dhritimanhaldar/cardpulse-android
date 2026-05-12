@@ -13,7 +13,6 @@ import com.cardpulse.app.parser.SmsTransactionParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.Date
 
 class SmsReceiver : BroadcastReceiver() {
 
@@ -33,7 +32,6 @@ class SmsReceiver : BroadcastReceiver() {
 
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    // Find card by last 4 digits
                     val cards = repository.getAllCardsSync()
                     val matchedCard = result.last4Digits?.let { last4 ->
                         cards.firstOrNull { it.last4Digits == last4 }
@@ -42,20 +40,25 @@ class SmsReceiver : BroadcastReceiver() {
                     } ?: return@launch
 
                     val txn = Transaction(
+                        id = 0,
                         cardId = matchedCard.id,
                         amount = result.amount,
                         merchant = result.merchant,
                         category = result.category,
-                        date = Date(),
+                        date = System.currentTimeMillis(),
                         source = TransactionSource.SMS,
                         rawText = body,
+                        rawEmailId = null,
                         status = TransactionStatus.CONFIRMED,
-                        isCredit = result.isCredit
+                        isCredit = result.isCredit,
+                        isFlagged = false,
+                        flagReason = null,
+                        currency = "INR",
+                        isInternational = false
                     )
 
                     repository.insertTransaction(txn)
 
-                    // Update spend rule progress for debit txns
                     if (!result.isCredit) {
                         repository.recalculateSpendProgress(matchedCard.id)
                     }

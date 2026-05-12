@@ -1,15 +1,42 @@
 package com.cardpulse.app.ui.screen
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -21,15 +48,13 @@ fun AddCardScreen(
     navController: NavController,
     editCardId: Long? = null
 ) {
-    val viewModel: AddCardViewModel = viewModel()
     val context = LocalContext.current
+    val viewModel: AddCardViewModel = viewModel()
 
-    // Initialize repository
     LaunchedEffect(Unit) {
         viewModel.initialize(context)
     }
 
-    // Load card if editing
     LaunchedEffect(editCardId) {
         editCardId?.let { cardId ->
             viewModel.loadCardForEdit(context, cardId)
@@ -55,33 +80,33 @@ fun AddCardScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Card Number
             OutlinedTextField(
-                value = viewModel.cardNumber.value,
-                onValueChange = { viewModel.cardNumber.value = it },
-                label = { Text("Card Number") },
-                placeholder = { Text("1234 5678 9012 3456") },
+                value = viewModel.cardName.value,
+                onValueChange = { viewModel.cardName.value = it },
+                label = { Text("Card Name") },
+                placeholder = { Text("Infinia Metal") },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Card Holder Name
             OutlinedTextField(
-                value = viewModel.cardHolderName.value,
-                onValueChange = { viewModel.cardHolderName.value = it },
-                label = { Text("Card Holder Name") },
-                modifier = Modifier.fillMaxWidth()
+                value = viewModel.last4Digits.value,
+                onValueChange = { viewModel.last4Digits.value = it },
+                label = { Text("Last 4 Digits") },
+                placeholder = { Text("1234") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Bank Selection Dropdown
             Text(
                 text = "Bank",
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
+
             ExposedDropdownMenuBox(
                 expanded = viewModel.showBankDropdown.value,
                 onExpandedChange = { viewModel.showBankDropdown.value = it }
@@ -116,13 +141,13 @@ fun AddCardScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Card Variant Dropdown (only show if bank selected)
             if (viewModel.selectedBank.value != null) {
                 Text(
                     text = "Card Variant",
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
+
                 ExposedDropdownMenuBox(
                     expanded = viewModel.showCardVariantDropdown.value,
                     onExpandedChange = { viewModel.showCardVariantDropdown.value = it }
@@ -172,7 +197,6 @@ fun AddCardScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Card Nickname (optional)
             OutlinedTextField(
                 value = viewModel.cardNickname.value,
                 onValueChange = { viewModel.cardNickname.value = it },
@@ -181,48 +205,25 @@ fun AddCardScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Expiry Date
-            Row(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = viewModel.expiryMonth.value,
-                    onValueChange = { viewModel.expiryMonth.value = it },
-                    label = { Text("Month") },
-                    placeholder = { Text("MM") },
-                    modifier = Modifier.weight(1f)
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                OutlinedTextField(
-                    value = viewModel.expiryYear.value,
-                    onValueChange = { viewModel.expiryYear.value = it },
-                    label = { Text("Year") },
-                    placeholder = { Text("YY") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Color Picker (simplified)
             Text(
                 text = "Card Color",
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val colors = listOf(
-                    Color(0xFF1976D2), // Blue
-                    Color(0xFFD32F2F), // Red
-                    Color(0xFF388E3C), // Green
-                    Color(0xFFF57C00), // Orange
-                    Color(0xFF7B1FA2), // Purple
-                    Color(0xFF303F9F)  // Indigo
+                    Color(0xFF1976D2),
+                    Color(0xFFD32F2F),
+                    Color(0xFF388E3C),
+                    Color(0xFFF57C00),
+                    Color(0xFF7B1FA2),
+                    Color(0xFF303F9F)
                 )
 
                 colors.forEach { color ->
@@ -250,12 +251,11 @@ fun AddCardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Save Button
             Button(
                 onClick = { viewModel.saveCard(context, navController) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = viewModel.cardNumber.value.isNotBlank() &&
-                        viewModel.cardHolderName.value.isNotBlank() &&
+                enabled = viewModel.last4Digits.value.isNotBlank() &&
+                        viewModel.cardName.value.isNotBlank() &&
                         viewModel.selectedBank.value != null
             ) {
                 Text(if (editCardId != null) "Update Card" else "Add Card")

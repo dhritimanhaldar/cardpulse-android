@@ -17,6 +17,10 @@ import com.cardpulse.app.ui.screen.AddCardScreen
 import com.cardpulse.app.ui.screen.CardDetailScreen
 import com.cardpulse.app.ui.screen.DashboardScreen
 import com.cardpulse.app.ui.theme.CardPulseTheme
+import com.cardpulse.app.viewmodel.AddCardViewModel
+import com.cardpulse.app.viewmodel.CardDetailViewModel
+import com.cardpulse.app.viewmodel.DashboardViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,26 +43,29 @@ fun CardPulseApp() {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = "dashboard") {
-        // Dashboard
         composable("dashboard") {
-            DashboardScreen(navController)
+            val dashboardViewModel: DashboardViewModel = viewModel(
+                factory = DashboardViewModel.factory(navController.context)
+            )
+            DashboardScreen(
+                navController = navController,
+                viewModel = dashboardViewModel
+            )
         }
 
-        // Add/Edit Card - Updated to accept optional cardId
         composable(
             route = "add_card/{cardId}",
             arguments = listOf(
                 navArgument("cardId") {
                     type = NavType.LongType
-                    defaultValue = -1L  // -1 means "add new card"
+                    defaultValue = -1L
                 }
             )
         ) { backStackEntry ->
             val cardId = backStackEntry.arguments?.getLong("cardId")?.takeIf { it != -1L }
-            AddCardScreen(navController, editCardId = cardId)
+            AddCardScreen(navController = navController, editCardId = cardId)
         }
 
-        // Card Detail
         composable(
             route = "card_detail/{cardId}",
             arguments = listOf(
@@ -68,7 +75,7 @@ fun CardPulseApp() {
             )
         ) { backStackEntry ->
             val cardId = backStackEntry.arguments?.getLong("cardId") ?: return@composable
-            CardDetailScreen(navController, cardId)
+            CardDetailScreen(navController = navController, cardId = cardId)
         }
     }
 }

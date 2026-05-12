@@ -9,6 +9,7 @@ import com.cardpulse.app.data.CardRepository
 import com.cardpulse.app.data.GmailFetcher
 import com.cardpulse.app.data.SmsReader
 import com.cardpulse.app.gemini.GeminiService
+import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
@@ -52,37 +53,47 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 val existingCards = repository.getAllCards()
                 val emails = gmailFetcher.fetchTransactionEmails(existingCards.map { it.last4Digits })
 
-                // Auto-detect + create new cards
                 val detectedCards = CardDetectionParser.detectCards(emails)
                 Log.d("CardPulse", "Detected cards: ${detectedCards.map { "${it.bankName} xxxx${it.last4}" }}")
                 for (detected in detectedCards) {
                     val alreadyExists = existingCards.any { it.last4Digits == detected.last4 }
                     if (!alreadyExists) {
                         repository.insertCard(
-                            com.cardpulse.app.model.Card(
-                                id = 0, bankName = detected.bankName, cardName = detected.cardName,
-                                last4Digits = detected.last4, cardType = detected.cardType,
+                            Card(
+                                id = 0,
+                                bankName = detected.bankName,
+                                cardName = detected.cardName,
+                                last4Digits = detected.last4,
+                                cardType = detected.cardType,
                                 cardNetwork = detected.bankName,
+                                creditLimit = 0.0,
+                                billingCycleDay = 1,
+                                statementDay = 1,
+                                dueDateOffset = 20,
+                                annualFee = 0.0,
+                                isAutoFetched = true,
+                                isVerified = false,
+                                isActive = true,
+                                addedOn = System.currentTimeMillis(),
                                 color = defaultColorForBank(detected.bankName),
-                                creditLimit = 0.0, billingCycleDay = 1,
-                                statementDay = 1, dueDateOffset = 20,
-                                isActive = true, annualFee = 0.0,
-                                addedOn = java.util.Date()
+                                currentOutstanding = 0.0,
+                                minimumDue = 0.0,
+                                paymentDueDate = null
                             )
                         )
                     }
                 }
 
-                // Match transactions to correct card by last 4
                 val allCards = repository.getAllCards()
-                if (allCards.isEmpty()) { _syncState.value = SyncState.Done(0); return@launch }
+                if (allCards.isEmpty()) {
+                    _syncState.value = SyncState.Done(0)
+                    return@launch
+                }
                 var cardIdByLast4 = allCards.associate { it.last4Digits to it.id }
 
-                // Split emails: statements vs transactions
                 val statementEmails = emails.filter { StatementEmailParser.isStatementEmail(it.subject) }
                 val transactionEmails = emails.filter { !StatementEmailParser.isStatementEmail(it.subject) }
 
-                // Process statements → update card outstanding/due
                 for (email in statementEmails) {
                     val statement = StatementEmailParser.parse(email)
                     val last4 = statement.last4 ?: continue
@@ -99,12 +110,10 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 var newCount = 0
                 var geminiCallCount = 0
                 for (email in transactionEmails) {
-                    if (repository.getTransactionByEmailId(email.messageId) != null) continue // already saved
+                    if (repository.getTransactionByEmailId(email.messageId) != null) continue
 
-                    // Layer 1: fast regex parse
                     var txn = EmailTransactionParser.parse(email, cardIdByLast4)
 
-                    // Layer 2: Gemini fallback for emails regex couldn't parse
                     if (txn == null && geminiCallCount < AppConfig.GEMINI_EMAIL_PARSE_LIMIT) {
                         geminiCallCount++
                         val geminiResult = geminiService.parseEmailTransaction(
@@ -113,28 +122,34 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                             bodySnippet = email.body.take(800)
                         )
                         if (geminiResult.isTransaction && geminiResult.amount != null) {
-                            // Try to match card — use Gemini's last4 first, then fallback
                             val cardId = geminiResult.last4?.let { cardIdByLast4[it] }
                                 ?: cardIdByLast4.values.firstOrNull()
                                 ?: continue
 
-                            // Auto-create card if Gemini detected a new bank+last4 combo
                             if (geminiResult.last4 != null && geminiResult.bankName != null
                                 && !cardIdByLast4.containsKey(geminiResult.last4)
                             ) {
                                 val newCardId = repository.insertCard(
-                                    com.cardpulse.app.model.Card(
+                                    Card(
                                         id = 0,
                                         bankName = geminiResult.bankName,
                                         cardName = "${geminiResult.bankName} Card",
                                         last4Digits = geminiResult.last4,
                                         cardType = "Credit Card",
                                         cardNetwork = geminiResult.bankName,
+                                        creditLimit = 0.0,
+                                        billingCycleDay = 1,
+                                        statementDay = 1,
+                                        dueDateOffset = 20,
+                                        annualFee = 0.0,
+                                        isAutoFetched = true,
+                                        isVerified = false,
+                                        isActive = true,
+                                        addedOn = System.currentTimeMillis(),
                                         color = defaultColorForBank(geminiResult.bankName),
-                                        creditLimit = 0.0, billingCycleDay = 1,
-                                        statementDay = 1, dueDateOffset = 20,
-                                        isActive = true, annualFee = 0.0,
-                                        addedOn = java.util.Date()
+                                        currentOutstanding = 0.0,
+                                        minimumDue = 0.0,
+                                        paymentDueDate = null
                                     )
                                 )
                                 cardIdByLast4 = cardIdByLast4 + (geminiResult.last4 to newCardId.toInt())
@@ -145,35 +160,31 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                                 cardId = cardId,
                                 amount = geminiResult.amount,
                                 merchant = geminiResult.merchant ?: "Unknown",
-                                date = java.util.Date(),
                                 category = geminiResult.category ?: "Others",
-                                isCredit = geminiResult.isCredit,
+                                date = System.currentTimeMillis(),
                                 source = TransactionSource.GMAIL,
-                                status = TransactionStatus.CONFIRMED,
+                                rawText = email.body,
                                 rawEmailId = email.messageId,
+                                status = TransactionStatus.CONFIRMED,
+                                isCredit = geminiResult.isCredit,
                                 isFlagged = false,
-                                flagReason = null
+                                flagReason = null,
+                                currency = "INR",
+                                isInternational = false
                             )
                         }
                     }
 
-                    Log.d(
-                        "CardPulse",
-                        "Parsed txn: ${txn?.merchant} ₹${txn?.amount} → card ${txn?.cardId} (email: ${email.subject})"
-                    )
                     if (txn != null) {
                         repository.insertTransaction(txn)
                         newCount++
                     }
                 }
 
-                // SMS sync
-                val smsList = smsReader.readBankSms()
-                for (sms in smsList) {
-                    // Deduplicate by timestamp+amount (SMS has no unique ID like emailId)
-                    val dedupKey = "${sms.timestamp}_${sms.body.take(30)}"
+                val smsList = smsReader.readTransactionSms()
+                for (txn in smsList) {
+                    val dedupKey = "${txn.date}_${txn.amount}_${txn.merchant}"
                     if (repository.getTransactionByEmailId(dedupKey) != null) continue
-                    val txn = SmsTransactionParser.parse(sms, cardIdByLast4) ?: continue
                     val txnWithId = txn.copy(rawEmailId = dedupKey)
                     repository.insertTransaction(txnWithId)
                     newCount++
@@ -187,10 +198,16 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun defaultColorForBank(bankName: String) = when (bankName.lowercase()) {
-        "hdfc" -> "#004C8C"; "axis" -> "#800000"; "icici" -> "#F58220"
-        "sbi" -> "#2D6DB5"; "kotak" -> "#EF3E42"; "amex" -> "#016FD0"
-        "idfc first" -> "#7B1FA2"; "indusind" -> "#1A237E"
-        "yes bank" -> "#0052A5"; "rbl" -> "#B71C1C"
+        "hdfc" -> "#004C8C"
+        "axis" -> "#800000"
+        "icici" -> "#F58220"
+        "sbi" -> "#2D6DB5"
+        "kotak" -> "#EF3E42"
+        "amex" -> "#016FD0"
+        "idfc first" -> "#7B1FA2"
+        "indusind" -> "#1A237E"
+        "yes bank" -> "#0052A5"
+        "rbl" -> "#B71C1C"
         else -> "#37474F"
     }
 }

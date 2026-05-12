@@ -1,17 +1,17 @@
-package com.cardpulse.app.sms
+package com.cardpulse.app.data
 
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.provider.Telephony
-import com.cardpulse.app.data.CardPulseDatabase
-import com.cardpulse.app.data.CardRepository
+import com.cardpulse.app.data.dao.CardDao
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.model.TransactionSource
+import com.cardpulse.app.model.TransactionStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
 
 class SmsReader(private val context: Context) {
 
@@ -30,8 +30,8 @@ class SmsReader(private val context: Context) {
 
         cursor?.use {
             while (it.moveToNext()) {
-                val address = it.getString(it.getColumnIndexOrThrow("address"))
-                val body = it.getString(it.getColumnIndexOrThrow("body"))
+                val address = it.getString(it.getColumnIndexOrThrow("address")) ?: continue
+                val body = it.getString(it.getColumnIndexOrThrow("body")) ?: continue
                 val dateMillis = it.getLong(it.getColumnIndexOrThrow("date"))
 
                 if (isTransactionSms(body, address)) {
@@ -39,7 +39,6 @@ class SmsReader(private val context: Context) {
                     transaction?.let { txn ->
                         transactions.add(txn)
 
-                        // Auto-add card if not exists
                         val last4 = extractLast4Digits(body)
                         val bankName = mapSenderToBank(address)
                         if (last4 != null && bankName != null) {
@@ -54,12 +53,11 @@ class SmsReader(private val context: Context) {
     }
 
     private suspend fun autoAddCardIfNotExists(last4: String, bankName: String) {
-        val dao = CardPulseDatabase.getDatabase(context).cardDao()
+        val dao = CardPulseDatabase.getInstance(context).cardDao()
         val existingCards = dao.getAllCards()
 
-        // Check if card already exists
         val exists = existingCards.any { card ->
-            card.cardNumber.endsWith(last4) &&
+            card.last4Digits == last4 &&
                     card.bankName.equals(bankName, ignoreCase = true)
         }
 
@@ -68,50 +66,53 @@ class SmsReader(private val context: Context) {
         }
     }
 
-    // Updated auto-add method with clean naming
     private suspend fun autoAddCardFromSms(last4: String, bankName: String) {
-        // Try to match to catalog first
         val matchedBank = repository.getAllBanks().find {
             it.name.equals(bankName, ignoreCase = true)
         }
 
-        // Create clean card name without duplication
         val cleanCardName = if (matchedBank != null) {
-            "${matchedBank.name} Card •${last4}"  // Simple, clean name
+            "${matchedBank.name} Card •$last4"
         } else {
-            "$bankName Card •${last4}"
+            "$bankName Card •$last4"
         }
 
-        // Generate color based on bank
         val cardColor = generateColorFromBank(matchedBank?.name ?: bankName)
 
         val card = Card(
-            cardNumber = "XXXX XXXX XXXX $last4",  // Masked
-            cardHolderName = "Card Holder",
             bankName = matchedBank?.name ?: bankName,
-            cardNickname = cleanCardName,
-            expiryMonth = "",
-            expiryYear = "",
-            color = cardColor,
-            catalogId = null,
-            isAutoFetched = true,   // Mark as auto-fetched
-            isVerified = false       // Needs verification
+            cardName = cleanCardName,
+            last4Digits = last4,
+            cardType = "Credit Card",
+            cardNetwork = matchedBank?.name ?: bankName,
+            creditLimit = 0.0,
+            billingCycleDay = 1,
+            statementDay = 1,
+            dueDateOffset = 20,
+            annualFee = 0.0,
+            isAutoFetched = true,
+            isVerified = false,
+            isActive = true,
+            addedOn = System.currentTimeMillis(),
+            color = String.format("#%06X", 0xFFFFFF and cardColor),
+            currentOutstanding = 0.0,
+            minimumDue = 0.0,
+            paymentDueDate = null
         )
 
-        CardPulseDatabase.getDatabase(context).cardDao().insertCard(card)
+        CardPulseDatabase.getInstance(context).cardDao().insertCard(card)
     }
 
     private fun generateColorFromBank(bankName: String): Int {
-        // Generate consistent color based on bank name hash
         val colors = listOf(
-            0xFF1976D2.toInt(), // Blue
-            0xFFD32F2F.toInt(), // Red
-            0xFF388E3C.toInt(), // Green
-            0xFFF57C00.toInt(), // Orange
-            0xFF7B1FA2.toInt(), // Purple
-            0xFF303F9F.toInt(), // Indigo
-            0xFF00796B.toInt(), // Teal
-            0xFFC2185B.toInt()  // Pink
+            0xFF1976D2.toInt(),
+            0xFFD32F2F.toInt(),
+            0xFF388E3C.toInt(),
+            0xFFF57C00.toInt(),
+            0xFF7B1FA2.toInt(),
+            0xFF303F9F.toInt(),
+            0xFF00796B.toInt(),
+            0xFFC2185B.toInt()
         )
 
         val hash = bankName.hashCode()
@@ -134,30 +135,31 @@ class SmsReader(private val context: Context) {
     }
 
     private fun parseTransactionSms(body: String, sender: String, dateMillis: Long): Transaction? {
-        // Extract amount
         val amountPattern = """(?:Rs\.?|INR)\s*([0-9,]+\.?\d*)""".toRegex()
         val amountMatch = amountPattern.find(body)
         val amount = amountMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
 
-        // Extract last 4 digits
         val last4Pattern = """(?:XX|ending\s+|card\s+)(\d{4})""".toRegex()
         val last4 = last4Pattern.find(body)?.groupValues?.get(1) ?: "XXXX"
 
-        // Extract merchant (simplified)
         val merchantPattern = """at\s+([A-Z\s]+)""".toRegex()
         val merchant = merchantPattern.find(body)?.groupValues?.get(1)?.trim() ?: "Unknown"
 
-        // Map bank
-        val bankName = mapSenderToBank(sender) ?: "Unknown Bank"
-
         return Transaction(
+            cardId = 0,
             amount = amount,
             merchant = merchant,
-            date = Date(dateMillis),
-            cardNumber = "XXXX$last4",
-            description = body,
             category = "General",
-            cardId = 0L  // Will be matched later
+            date = dateMillis,
+            source = TransactionSource.SMS,
+            rawText = body,
+            rawEmailId = null,
+            status = TransactionStatus.CONFIRMED,
+            isCredit = false,
+            isFlagged = false,
+            flagReason = null,
+            currency = "INR",
+            isInternational = false
         )
     }
 

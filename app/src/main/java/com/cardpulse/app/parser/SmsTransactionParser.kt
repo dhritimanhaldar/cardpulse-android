@@ -25,14 +25,12 @@ object SmsTransactionParser {
 
     private val TAG = "SmsTransactionParser"
 
-    // Debit patterns: "debited", "spent", "withdrawn", "payment of"
     private val DEBIT_PATTERNS = listOf(
         Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,60}(?:debited|spent|used at|payment of)""", RegexOption.IGNORE_CASE),
         Regex("""(?:debited|spent|payment of)\s+(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE),
         Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s+(?:debited|spent)""", RegexOption.IGNORE_CASE)
     )
 
-    // Credit patterns: "credited", "refund", "cashback", "payment received"
     private val CREDIT_PATTERNS = listOf(
         Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,60}(?:credited|refund|cashback|payment received)""", RegexOption.IGNORE_CASE),
         Regex("""(?:credited|refund|cashback)\s+(?:with\s+)?(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
@@ -45,7 +43,6 @@ object SmsTransactionParser {
         Regex("""(?:purchase at|txn at|used at)\s+([A-Za-z0-9 &'./-]{3,40})""", RegexOption.IGNORE_CASE)
     )
 
-    // Known bank SMS sender addresses
     private val BANK_SENDER_MAP = mapOf(
         "HDFCBK" to "HDFC Bank",
         "SBIINB" to "SBI",
@@ -81,26 +78,27 @@ object SmsTransactionParser {
             cardId = cardId,
             amount = result.amount,
             merchant = result.merchant,
-            date = Date(sms.timestamp),
             category = result.category,
-            isCredit = result.isCredit,
+            date = sms.timestamp,
             source = TransactionSource.SMS,
-            status = TransactionStatus.CONFIRMED,
+            rawText = sms.body,
             rawEmailId = null,
+            status = TransactionStatus.CONFIRMED,
+            isCredit = result.isCredit,
             isFlagged = false,
-            flagReason = null
+            flagReason = null,
+            currency = "INR",
+            isInternational = false
         )
     }
 
     fun parse(smsBody: String, sender: String): SmsTransactionResult? {
         val body = smsBody.trim()
 
-        // Identify bank
         val bankName = BANK_SENDER_MAP.entries.firstOrNull { (key, _) ->
             sender.uppercase().contains(key)
         }?.value
 
-        // Try debit
         var amount: Double? = null
         var isCredit = false
 
@@ -112,7 +110,6 @@ object SmsTransactionParser {
             }
         }
 
-        // Try credit if not found as debit
         if (amount == null) {
             for (pattern in CREDIT_PATTERNS) {
                 val match = pattern.find(body)
@@ -128,10 +125,8 @@ object SmsTransactionParser {
             return null
         }
 
-        // Extract last 4
         val last4 = LAST4_PATTERN.find(body)?.groupValues?.get(1)
 
-        // Extract merchant
         var merchant = "Unknown"
         for (pattern in MERCHANT_PATTERNS) {
             val match = pattern.find(body)

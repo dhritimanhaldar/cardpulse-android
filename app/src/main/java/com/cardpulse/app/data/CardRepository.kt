@@ -2,135 +2,142 @@ package com.cardpulse.app.data
 
 import android.content.Context
 import com.cardpulse.app.model.Card
+import com.cardpulse.app.model.CardWithProgress
+import com.cardpulse.app.model.ResolvedCard
+import com.cardpulse.app.model.SpendRule
+import com.cardpulse.app.model.Transaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class CardRepository(private val context: Context) {
 
-    // Get all unique banks from catalog
+    private val db by lazy { CardPulseDatabase.getInstance(context) }
+    private val cardDao by lazy { db.cardDao() }
+    private val transactionDao by lazy { db.transactionDao() }
+    private val spendRuleDao by lazy { db.spendRuleDao() }
+
     suspend fun getAllBanks(): List<BankOption> = withContext(Dispatchers.IO) {
         val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
         catalog.banks.map { bank ->
             BankOption(
-                code = bank.code,
-                name = bank.name
+                code = bank.b,
+                name = bank.b
             )
         }.sortedBy { it.name }
     }
 
-    // Get all card variants for a specific bank
     suspend fun getCardVariantsForBank(bankCode: String): List<CardVariantOption> =
         withContext(Dispatchers.IO) {
             val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
-            val bank = catalog.banks.find { it.code == bankCode } ?: return@withContext emptyList()
+            val bank = catalog.banks.find { it.b.equals(bankCode, ignoreCase = true) }
+                ?: return@withContext emptyList()
 
             val variants = mutableListOf<CardVariantOption>()
-            bank.groups.forEach { group ->
-                group.cards.forEach { card ->
-                    variants.add(CardVariantOption(
-                        cardId = card.id,
-                        name = card.name,
-                        groupName = group.name,
-                        displayName = formatCardDisplayName(bank.name, group.name, card.name)
-                    ))
+            bank.g.orEmpty().forEach { group ->
+                group.c.orEmpty().forEach { card ->
+                    variants.add(
+                        CardVariantOption(
+                            cardId = card.n,
+                            name = card.n,
+                            groupName = group.n,
+                            displayName = "${bank.b} ${group.n} ${card.n}"
+                                .replace("\\s+".toRegex(), " ")
+                                .trim()
+                        )
+                    )
                 }
             }
             variants.sortedBy { it.displayName }
         }
 
-    // Smart name formatter to avoid duplication
-    private fun formatCardDisplayName(bankName: String, groupName: String?, cardName: String): String {
-        val cleanCardName = cardName
-            .replace(bankName, "", ignoreCase = true)
-            .trim()
-
-        val finalCardName = if (groupName != null) {
-            cleanCardName.replace(groupName, "", ignoreCase = true).trim()
-        } else {
-            cleanCardName
-        }
-
-        return when {
-            groupName != null && finalCardName.isNotBlank() ->
-                "$bankName $groupName $finalCardName"
-            groupName != null ->
-                "$bankName $groupName"
-            finalCardName.isNotBlank() ->
-                "$bankName $finalCardName"
-            else ->
-                "$bankName Card"
-        }.replace("\\s+".toRegex(), " ").trim()
-    }
-
-    // Match card by BIN
     suspend fun matchCardByBin(bin: String): ResolvedCard? = withContext(Dispatchers.IO) {
         val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext null
-        val parser = CardDataParser(catalog)
-        parser.matchCardByBin(bin)
+        CardDataParser.matchCard(catalog, bin, null, null)
     }
 
-    // Search cards in catalog
     suspend fun searchCardsInCatalog(query: String): List<ResolvedCard> = withContext(Dispatchers.IO) {
         val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
-        val parser = CardDataParser(catalog)
-
-        val results = mutableListOf<ResolvedCard>()
-        catalog.banks.forEach { bank ->
-            bank.groups.forEach { group ->
-                group.cards.forEach { card ->
-                    val resolved = parser.resolveCard(bank.code, group.name, card.id)
-                    if (resolved != null &&
-                        (resolved.cardName.contains(query, ignoreCase = true) ||
-                                resolved.bankName.contains(query, ignoreCase = true))) {
-                        results.add(resolved)
-                    }
-                }
-            }
-        }
-        results
+        CardDataParser.searchCards(catalog, query)
     }
 
-    // Rematch and refresh card after edit
-    suspend fun refreshCardMetrics(cardId: Long) = withContext(Dispatchers.IO) {
-        val dao = CardPulseDatabase.getDatabase(context).cardDao()
-        val card = dao.getCardById(cardId) ?: return@withContext
+    suspend fun getAllCards(): List<Card> = withContext(Dispatchers.IO) {
+        cardDao.getAllCards()
+    }
 
-        // 1. Rematch card to JSON catalog
-        val resolved = matchCardByBin(card.cardNumber.take(6))
+    suspend fun getAllCardsSync(): List<Card> = withContext(Dispatchers.IO) {
+        cardDao.getAllCardsSync()
+    }
 
-        // 2. Update card with catalog metadata
-        val updatedCard = card.copy(
-            catalogId = resolved?.catalogId,
-            cardType = resolved?.cardType,
-            network = resolved?.network,
-            isVerified = true
+    suspend fun insertCard(card: Card): Long = withContext(Dispatchers.IO) {
+        cardDao.insertCard(card)
+    }
+
+    suspend fun updateCard(card: Card) = withContext(Dispatchers.IO) {
+        cardDao.updateCard(card)
+    }
+
+    suspend fun deleteCard(cardId: Int) = withContext(Dispatchers.IO) {
+        cardDao.softDeleteCard(cardId)
+    }
+
+    suspend fun getCardWithProgress(cardId: Int): CardWithProgress? = withContext(Dispatchers.IO) {
+        val card = cardDao.getCardById(cardId) ?: return@withContext null
+        val rules = spendRuleDao.getRulesForCard(cardId)
+        val txns = transactionDao.getTransactionsForCard(cardId)
+        val lounge = db.loungeDao().getLoungeForCard(cardId)
+        val totalSpent = txns.filter { !it.isCredit }.sumOf { it.amount }
+        CardWithProgress(
+            card = card,
+            spendRules = rules,
+            totalSpentThisCycle = totalSpent,
+            recentTransactions = txns.take(10),
+            loungeAccess = lounge
         )
-        dao.updateCard(updatedCard)
-
-        // 3. Rematch all SMS transactions to this card
-        rematchTransactionsForCard(cardId, card.cardNumber.takeLast(4), card.bankName)
     }
 
-    // Rematch SMS transactions after bank/card change
-    private suspend fun rematchTransactionsForCard(
-        cardId: Long,
-        last4Digits: String,
-        bankName: String
-    ) {
-        val transactionDao = CardPulseDatabase.getDatabase(context).transactionDao()
+    suspend fun getTransactionsForCard(cardId: Int): List<Transaction> = withContext(Dispatchers.IO) {
+        transactionDao.getTransactionsForCard(cardId)
+    }
 
-        val potentialMatches = transactionDao.getAllTransactions().filter { txn ->
-            txn.cardNumber.endsWith(last4Digits) &&
-                    txn.description.contains(bankName, ignoreCase = true)
-        }
+    suspend fun getTransactionByEmailId(emailId: String): Transaction? = withContext(Dispatchers.IO) {
+        transactionDao.getTransactionByEmailId(emailId)
+    }
 
-        potentialMatches.forEach { txn ->
-            transactionDao.updateTransaction(txn.copy(cardId = cardId))
+    suspend fun insertTransaction(txn: Transaction): Long = withContext(Dispatchers.IO) {
+        transactionDao.insertTransaction(txn)
+    }
+
+    suspend fun updateTransaction(txn: Transaction) = withContext(Dispatchers.IO) {
+        transactionDao.updateTransaction(txn)
+    }
+
+    suspend fun replaceSpendRules(cardId: Int, rules: List<SpendRule>) = withContext(Dispatchers.IO) {
+        spendRuleDao.deleteRulesForCard(cardId)
+        rules.forEach { spendRuleDao.insertRule(it) }
+    }
+
+    suspend fun recalculateSpendProgress(cardId: Int) {
+        // Placeholder for future milestone recalculation.
+    }
+
+    suspend fun getAllCardsWithProgress(): List<CardWithProgress> = withContext(Dispatchers.IO) {
+        val cards = cardDao.getAllCards()
+        cards.map { card ->
+            val rules = spendRuleDao.getRulesForCard(card.id)
+            val txns = transactionDao.getTransactionsForCard(card.id)
+            val lounge = db.loungeDao().getLoungeForCard(card.id)
+            val totalSpent = txns.filter { !it.isCredit }.sumOf { it.amount }
+            CardWithProgress(
+                card = card,
+                spendRules = rules,
+                totalSpentThisCycle = totalSpent,
+                recentTransactions = txns.take(10),
+                loungeAccess = lounge
+            )
         }
     }
 }
 
-// Data classes for bank and card selection
 data class BankOption(
     val code: String,
     val name: String

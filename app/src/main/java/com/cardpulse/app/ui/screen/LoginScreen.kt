@@ -19,15 +19,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cardpulse.app.auth.AuthManager
+import com.cardpulse.app.auth.AuthResult
 import com.cardpulse.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
-    val context      = LocalContext.current
-    val authManager  = remember { AuthManager(context) }
-    val scope        = rememberCoroutineScope()
-    var isLoading    by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val authManager = remember { AuthManager(context) }
+    val scope = rememberCoroutineScope()
+    var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val launcher = rememberLauncherForActivityResult(
@@ -36,12 +37,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         scope.launch {
             isLoading = true
             when (val authResult = authManager.handleSignInResult(result)) {
-                is com.cardpulse.app.auth.AuthResult.Success -> onLoginSuccess()
-                is com.cardpulse.app.auth.AuthResult.Error   -> {
+                is AuthResult.Success -> onLoginSuccess()
+                is AuthResult.Error -> {
                     errorMessage = authResult.message
                     isLoading = false
                 }
-                is com.cardpulse.app.auth.AuthResult.Cancelled -> {
+                AuthResult.Cancelled -> {
                     isLoading = false
                 }
             }
@@ -53,7 +54,11 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(PulseBackground, PulseDarkBlue.copy(alpha = 0.3f), PulseBackground)
+                    colors = listOf(
+                        PulseBackground,
+                        PulseDarkBlue.copy(alpha = 0.3f),
+                        PulseBackground
+                    )
                 )
             ),
         contentAlignment = Alignment.Center
@@ -63,42 +68,38 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(24.dp),
             modifier = Modifier.padding(32.dp)
         ) {
-            // Logo
             Icon(
                 imageVector = Icons.Filled.CreditCard,
                 contentDescription = "CardPulse",
-                tint   = PulseBlue,
+                tint = PulseBlue,
                 modifier = Modifier.size(72.dp)
             )
 
-            // App name
             Text(
-                text       = "CardPulse",
-                fontSize   = 36.sp,
+                text = "CardPulse",
+                fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
-                color      = PulseOnSurface
+                color = PulseOnSurface
             )
 
             Text(
-                text      = "Track every rupee. Never miss a reward.",
-                fontSize  = 14.sp,
-                color     = PulseSubtext,
+                text = "Track every rupee. Never miss a reward.",
+                fontSize = 14.sp,
+                color = PulseSubtext,
                 textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Error message
             errorMessage?.let {
                 Text(
-                    text     = it,
-                    color    = PulseDanger,
+                    text = it,
+                    color = PulseDanger,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
             }
 
-            // Google Sign-In button
             Button(
                 onClick = {
                     if (!isLoading) {
@@ -109,7 +110,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape  = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PulseBlue
                 ),
@@ -117,24 +118,24 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color    = PulseOnSurface,
+                        color = PulseOnSurface,
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp
                     )
                 } else {
                     Text(
-                        text       = "Continue with Google",
-                        fontSize   = 16.sp,
+                        text = "Continue with Google",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color      = MaterialTheme.colorScheme.onPrimary
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
 
             Text(
-                text     = "Your data stays on your device.\nGoogle account used for Gmail access only.",
+                text = "Your data stays on your device.\nGoogle account used for Gmail access only.",
                 fontSize = 11.sp,
-                color    = PulseSubtext,
+                color = PulseSubtext,
                 textAlign = TextAlign.Center,
                 lineHeight = 16.sp
             )

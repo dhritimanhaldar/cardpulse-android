@@ -3,12 +3,10 @@ package com.cardpulse.app.parser
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
-import java.util.Date
 import java.util.regex.Pattern
 
 object SmsParser {
 
-    // Known bank SMS sender IDs
     private val BANK_SENDERS = setOf(
         "HDFCBK", "ICICIB", "SBIINB", "AXISBK", "KOTAKB",
         "INDUSB", "YESBNK", "RBLBNK", "SCBANK", "CITIBN",
@@ -16,24 +14,19 @@ object SmsParser {
         "CENTBK", "CANBNK", "UCOBNK", "SYNBNK", "FEDBKM"
     )
 
-    // Regex patterns for transaction parsing
     private val DEBIT_PATTERNS = listOf(
-        // HDFC: "INR 1,500.00 debited from card XX1234"
         Pattern.compile(
             """(?:INR|Rs\.?|₹)\s*([\d,]+\.?\d*)\s*(?:debited|spent|used|charged)""",
             Pattern.CASE_INSENSITIVE
         ),
-        // ICICI: "Your a/c XX1234 debited for Rs.500"
         Pattern.compile(
             """(?:debited for|debit of|purchase of)\s*(?:INR|Rs\.?|₹)?\s*([\d,]+\.?\d*)""",
             Pattern.CASE_INSENSITIVE
         ),
-        // Axis: "Rs.2000.00 spent on your Axis Bank Credit Card"
         Pattern.compile(
             """(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)\s*(?:spent|debited|charged)""",
             Pattern.CASE_INSENSITIVE
         ),
-        // Generic amount pattern
         Pattern.compile(
             """(?:amount|txn|transaction)\s*(?:of)?\s*(?:INR|Rs\.?|₹)?\s*([\d,]+\.?\d*)""",
             Pattern.CASE_INSENSITIVE
@@ -50,7 +43,6 @@ object SmsParser {
     fun isBankSms(sender: String, body: String): Boolean {
         val senderUpper = sender.uppercase()
         if (BANK_SENDERS.any { senderUpper.contains(it) }) return true
-        // Fallback: check body for transaction keywords
         val bodyLower = body.lowercase()
         return bodyLower.contains("debited") &&
                 (bodyLower.contains("card") || bodyLower.contains("a/c") || bodyLower.contains("account"))
@@ -59,29 +51,31 @@ object SmsParser {
     fun parse(body: String, sender: String): Transaction? {
         val amount = extractAmount(body) ?: return null
         val merchant = extractMerchant(body) ?: "Unknown Merchant"
-        val last4 = extractLast4(body)
         val isInternational = detectInternational(body)
         val category = categorize(merchant, body)
 
         return Transaction(
-            cardId = 0,             // Will be matched to card by last4 in repository layer
+            id = 0,
+            cardId = 0,
             amount = amount,
             merchant = merchant,
             category = category,
-            date = Date(),
+            date = System.currentTimeMillis(),
             source = TransactionSource.SMS,
             rawText = body,
-            isFlagged = amount >= com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD
-                    || (isInternational && com.cardpulse.app.config.AppConfig.FRAUD_FOREIGN_CURRENCY_FLAG),
+            rawEmailId = null,
+            status = if (amount < com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD && !isInternational)
+                TransactionStatus.CONFIRMED else TransactionStatus.PENDING,
+            isCredit = false,
+            isFlagged = amount >= com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD ||
+                    (isInternational && com.cardpulse.app.config.AppConfig.FRAUD_FOREIGN_CURRENCY_FLAG),
             flagReason = when {
                 amount >= com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD -> "Large amount: ₹$amount"
                 isInternational -> "International transaction"
                 else -> ""
             },
-            status = if (amount < com.cardpulse.app.config.AppConfig.FRAUD_LARGE_AMOUNT_THRESHOLD && !isInternational)
-                TransactionStatus.CONFIRMED else TransactionStatus.PENDING,
-            isInternational = isInternational,
-            currency = if (isInternational) extractCurrency(body) else "INR"
+            currency = if (isInternational) extractCurrency(body) else "INR",
+            isInternational = isInternational
         )
     }
 
@@ -89,9 +83,7 @@ object SmsParser {
         for (pattern in DEBIT_PATTERNS) {
             val matcher = pattern.matcher(body)
             if (matcher.find()) {
-                return matcher.group(1)
-                    ?.replace(",", "")
-                    ?.toDoubleOrNull()
+                return matcher.group(1)?.replace(",", "")?.toDoubleOrNull()
             }
         }
         return null
@@ -105,11 +97,6 @@ object SmsParser {
             }
         }
         return null
-    }
-
-    private fun extractLast4(body: String): String? {
-        val matcher = CARD_LAST4_PATTERN.matcher(body)
-        return if (matcher.find()) matcher.group(1) else null
     }
 
     private fun detectInternational(body: String): Boolean {
@@ -132,7 +119,6 @@ object SmsParser {
 
     private fun categorize(merchant: String, body: String): String {
         val m = merchant.lowercase()
-        val b = body.lowercase()
         return when {
             m.containsAny("swiggy", "zomato", "dunzo", "restaurant", "cafe", "food") -> "FOOD"
             m.containsAny("amazon", "flipkart", "myntra", "nykaa", "ajio") -> "SHOPPING"

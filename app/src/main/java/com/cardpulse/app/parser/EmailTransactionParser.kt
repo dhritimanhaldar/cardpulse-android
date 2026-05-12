@@ -5,42 +5,36 @@ import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 object EmailTransactionParser {
 
-    // Matches: Rs. 1,234.56 / INR 1234 / ₹1,234.56 / Rs 1234
     private val amountRegex = Regex(
         """(?:Rs\.?\s*|INR\s*|₹\s*)([\d,]+(?:\.\d{1,2})?)""",
         RegexOption.IGNORE_CASE
     )
 
-    // Matches merchant after "at" / "to" / "with" e.g. "debited at Swiggy" / "paid to Amazon"
     private val merchantRegex = Regex(
         """(?:at|to|with|@)\s+([A-Za-z0-9 &'.\-]{3,40})(?:\s+on|\s+for|\.|\n|$)""",
         RegexOption.IGNORE_CASE
     )
 
-    // Delegate to CardDetectionParser for consistency
-    private val last4Regex = Regex("") // Dummy regex as we call CardDetectionParser directly
-
     fun parse(email: RawEmailData, cardIdByLast4: Map<String, Int>): Transaction? {
-        // Always process known transaction alert subjects regardless of other filters
         val isDefinitelyTransaction = email.subject.lowercase().let {
             it.contains("transaction alert") || it.contains("debit alert") ||
                     it.contains("credit alert") || it.contains("payment alert") ||
                     it.contains("amount debited") || it.contains("has been debited")
         }
 
-        // Only skip junk if it's NOT a definite transaction email
         if (!isDefinitelyTransaction) {
-            val junkSubjects = listOf("view this message in html", "html version", "unsubscribe",
+            val junkSubjects = listOf(
+                "view this message in html", "html version", "unsubscribe",
                 "confirm your", "verify your", "welcome to", "ensure access",
                 "mother's day", "summer travel", "chapter", "credit limit", "imposters",
                 "easy emi", "gift card", "forex card", "personal loan", "higher education",
                 "happy", "meet the", "zero markup", "delivering strong", "think before",
-                "otp for", "one time password", "downtime notification")
+                "otp for", "one time password", "downtime notification"
+            )
             if (junkSubjects.any { email.subject.lowercase().contains(it) }) return null
             if (email.subject.lowercase().contains("view this message")) return null
         }
@@ -63,14 +57,15 @@ object EmailTransactionParser {
         val last4 = CardDetectionParser.extractLast4(text)
         val cardId = last4?.let { cardIdByLast4[it] } ?: cardIdByLast4.values.firstOrNull() ?: return null
 
-        val date = tryParseDate(email.dateHeader) ?: Date()
+        val dateMillis = tryParseDate(email.dateHeader) ?: System.currentTimeMillis()
         val isCredit = text.contains(Regex("credit|refund|cashback|reversal|credited", RegexOption.IGNORE_CASE))
 
-        // Detect bill payment / card due payment — these are credits to the card
-        val isPayment = text.contains(Regex(
-            "payment received|bill payment|amount paid|payment of|paid towards|payment credited|due paid|minimum due|outstanding paid|autopay|payment successful",
-            RegexOption.IGNORE_CASE
-        ))
+        val isPayment = text.contains(
+            Regex(
+                "payment received|bill payment|amount paid|payment of|paid towards|payment credited|due paid|minimum due|outstanding paid|autopay|payment successful",
+                RegexOption.IGNORE_CASE
+            )
+        )
         val finalIsCredit = isPayment || isCredit
         val finalCategory = when {
             isPayment -> "Payment"
@@ -82,21 +77,25 @@ object EmailTransactionParser {
             cardId = cardId,
             amount = amount,
             merchant = rawMerchant,
-            date = date,
             category = finalCategory,
-            isCredit = finalIsCredit,
+            date = dateMillis,
             source = TransactionSource.GMAIL,
-            status = TransactionStatus.CONFIRMED,
+            rawText = "${email.subject}\n${email.body}",
             rawEmailId = email.messageId,
+            status = TransactionStatus.CONFIRMED,
+            isCredit = finalIsCredit,
             isFlagged = false,
-            flagReason = null
+            flagReason = "",
+            currency = "INR",
+            isInternational = false
         )
     }
 
     private fun extractFallbackMerchant(subject: String): String? {
-        // e.g. "HDFC Bank: Transaction at Amazon" → "Amazon"
-        val match = Regex(""":\s*(?:transaction\s+)?(?:at\s+)?([A-Za-z0-9 &]{3,30})""",
-            RegexOption.IGNORE_CASE).find(subject)
+        val match = Regex(
+            """:\s*(?:transaction\s+)?(?:at\s+)?([A-Za-z0-9 &]{3,30})""",
+            RegexOption.IGNORE_CASE
+        ).find(subject)
         return match?.groupValues?.get(1)?.trim()
     }
 
@@ -114,7 +113,7 @@ object EmailTransactionParser {
         }
     }
 
-    private fun tryParseDate(dateStr: String): Date? {
+    private fun tryParseDate(dateStr: String): Long? {
         val formats = listOf(
             "EEE, dd MMM yyyy HH:mm:ss Z",
             "dd MMM yyyy HH:mm:ss Z",
@@ -122,7 +121,7 @@ object EmailTransactionParser {
         )
         for (fmt in formats) {
             try {
-                return SimpleDateFormat(fmt, Locale.ENGLISH).parse(dateStr)
+                return SimpleDateFormat(fmt, Locale.ENGLISH).parse(dateStr)?.time
             } catch (_: Exception) {}
         }
         return null

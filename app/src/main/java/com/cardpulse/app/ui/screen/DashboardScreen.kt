@@ -1,19 +1,40 @@
 package com.cardpulse.app.ui.screen
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.viewmodel.DashboardViewModel
@@ -22,9 +43,10 @@ import com.cardpulse.app.viewmodel.DashboardViewModel
 @Composable
 fun DashboardScreen(
     navController: NavController,
-    viewModel: DashboardViewModel = viewModel()
+    viewModel: DashboardViewModel
 ) {
-    val cards by viewModel.cards.collectAsState()
+    val cardsWithProgress by viewModel.cardsWithProgress.collectAsState()
+    val cards = cardsWithProgress.map { it.card }
     val hasUnverifiedCards = cards.any { it.isAutoFetched && !it.isVerified }
 
     Scaffold(
@@ -46,14 +68,18 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Verification Banner
             if (hasUnverifiedCards) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(16.dp)
+                        .clickable {
+                            cards.firstOrNull { it.isAutoFetched && !it.isVerified }?.let { card ->
+                                navController.navigate("add_card/${card.id}")
+                            }
+                        },
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
                     )
                 ) {
                     Row(
@@ -63,7 +89,7 @@ fun DashboardScreen(
                         Icon(
                             Icons.Default.Warning,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.size(32.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
@@ -71,29 +97,33 @@ fun DashboardScreen(
                             Text(
                                 "Verify Your Cards",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "Some cards were auto-detected from SMS. Please tap on them to verify and update details for accurate tracking.",
+                                "Tap to verify and complete card details for accurate tracking.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                         }
+                        Icon(
+                            Icons.Default.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
                     }
                 }
             }
 
-            // Cards List
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(cards) { card ->
+                items(cardsWithProgress) { item ->
                     CardItem(
-                        card = card,
-                        onClick = { navController.navigate("card_detail/${card.id}") }
+                        card = item.card,
+                        onClick = { navController.navigate("card_detail/${item.card.id}") }
                     )
                 }
             }
@@ -108,7 +138,7 @@ fun CardItem(card: Card, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = Color(card.color)
+            containerColor = Color(android.graphics.Color.parseColor(card.color))
         )
     ) {
         Row(
@@ -119,17 +149,7 @@ fun CardItem(card: Card, onClick: () -> Unit) {
             verticalAlignment = Alignment.Top
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                // Clean display name
-                val displayName = when {
-                    !card.cardNickname.isNullOrBlank() -> card.cardNickname
-                    else -> "${card.bankName} Card"
-                }.let { name ->
-                    // Remove duplicate words
-                    name.split(" ")
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                        .joinToString(" ")
-                }
+                val displayName = cleanCardDisplayName(card)
 
                 Text(
                     text = displayName,
@@ -140,7 +160,7 @@ fun CardItem(card: Card, onClick: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = formatCardNumber(card.cardNumber),
+                    text = "•••• ${card.last4Digits}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.White.copy(alpha = 0.9f)
                 )
@@ -148,13 +168,12 @@ fun CardItem(card: Card, onClick: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = card.cardHolderName,
+                    text = if (card.isVerified) "Verified" else "Needs verification",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.7f)
                 )
             }
 
-            // Verification Indicator
             if (card.isAutoFetched && !card.isVerified) {
                 Icon(
                     Icons.Default.Warning,
@@ -167,6 +186,26 @@ fun CardItem(card: Card, onClick: () -> Unit) {
     }
 }
 
-private fun formatCardNumber(number: String): String {
-    return number.chunked(4).joinToString(" ")
+private fun cleanCardDisplayName(card: Card): String {
+    val rawName = when {
+        card.cardName.isNotBlank() -> {
+            if (card.cardName.contains(card.bankName, ignoreCase = true)) {
+                card.cardName
+            } else {
+                "${card.bankName} ${card.cardName}"
+            }
+        }
+        else -> "${card.bankName} Card"
+    }
+
+    val words = rawName
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+
+    return words
+        .filterIndexed { index, word ->
+            index == 0 || !word.equals(words.getOrNull(index - 1), ignoreCase = true)
+        }
+        .joinToString(" ")
+        .trim()
 }

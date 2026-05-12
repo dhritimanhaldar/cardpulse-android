@@ -37,7 +37,6 @@ class MilestoneViewModel(
                 val rawJson = geminiService.getMilestonesForCard(cardName, bankName)
                 val rules = parseMilestonesJson(rawJson, cardId)
                 if (rules.isNotEmpty()) {
-                    // Clear old rules for this card and insert new
                     repository.replaceSpendRules(cardId, rules)
                     Log.d("MilestoneViewModel", "Stored ${rules.size} milestones for cardId=$cardId")
                 } else {
@@ -55,9 +54,12 @@ class MilestoneViewModel(
     private fun parseMilestonesJson(json: String, cardId: Int): List<SpendRule> {
         val rules = mutableListOf<SpendRule>()
         try {
-            // Try to extract JSON array from response (Gemini may wrap in markdown)
-            val jsonStr = json.substringAfter("[").let { "[$it" }.substringBefore("]").let { "$it]" }
-            val arr = JSONArray(jsonStr)
+            val cleaned = json
+                .substringAfter("[", "")
+                .substringBeforeLast("]", "")
+                .let { "[$it]" }
+
+            val arr = JSONArray(cleaned)
             for (i in 0 until arr.length()) {
                 val obj: JSONObject = arr.getJSONObject(i)
                 rules.add(

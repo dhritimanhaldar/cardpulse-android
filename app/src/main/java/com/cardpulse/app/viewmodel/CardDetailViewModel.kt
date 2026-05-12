@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.cardpulse.app.data.CardRepository
+import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.CardWithProgress
 import com.cardpulse.app.model.Milestone
 import com.cardpulse.app.model.Perk
@@ -26,6 +27,9 @@ class CardDetailViewModel(
 
     private val _cardDetail = MutableStateFlow<CardWithProgress?>(null)
     val cardDetail: StateFlow<CardWithProgress?> = _cardDetail
+
+    private val _card = MutableStateFlow<Card?>(null)
+    val card: StateFlow<Card?> = _card
 
     data class PerkProgress(
         val perk: Perk,
@@ -55,6 +59,9 @@ class CardDetailViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _isLoadingMilestones = MutableStateFlow(false)
+    val isLoadingMilestones: StateFlow<Boolean> = _isLoadingMilestones
+
     init {
         loadCard()
     }
@@ -64,6 +71,11 @@ class CardDetailViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                val loadedCard = repository.getCardById(cardId)
+                _card.value = loadedCard
+                _isLoading.value = false
+                _isLoadingMilestones.value = true
+
                 val detail = repository.getCardWithProgress(cardId)
                 _cardDetail.value = detail
                 val allTxns = repository.getTransactionsForCard(cardId)
@@ -86,6 +98,7 @@ class CardDetailViewModel(
                 Log.e("CardDetailViewModel", "Error loading card: ${e.message}")
             } finally {
                 _isLoading.value = false
+                _isLoadingMilestones.value = false
             }
         }
     }

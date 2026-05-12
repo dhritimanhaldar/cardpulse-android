@@ -37,3 +37,21 @@ fun cleanCardName(rawName: String, bankName: String): String {
         .trim()
         .ifBlank { "Card" }
 }
+
+fun cleanAndNormalizeBankName(rawName: String): String {
+    val cleaned = rawName
+        .trim()
+        .replace(Regex("\\s+Ltd\\.?\\s*$", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+Limited\\s*$", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    val words = cleaned
+        .split(" ")
+        .filter { it.isNotBlank() }
+        .filterIndexed { index, word ->
+            index == 0 || !word.equals(cleaned.split(" ").getOrNull(index - 1), ignoreCase = true)
+        }
+
+    return words.joinToString(" ").trim().ifBlank { rawName.trim() }
+}

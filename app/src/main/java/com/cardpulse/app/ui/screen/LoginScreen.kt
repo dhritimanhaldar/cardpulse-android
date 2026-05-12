@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.cardpulse.app.auth.AuthManager
 import com.cardpulse.app.auth.AuthResult
 import com.cardpulse.app.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -30,23 +31,41 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var loadingStep by remember { mutableStateOf<LoadingStep?>(null) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         scope.launch {
             isLoading = true
+            loadingStep = LoadingStep.AUTHENTICATING
             when (val authResult = authManager.handleSignInResult(result)) {
-                is AuthResult.Success -> onLoginSuccess()
+                is AuthResult.Success -> {
+                    loadingStep = LoadingStep.FETCHING_STATEMENTS
+                    delay(700)
+                    loadingStep = LoadingStep.PARSING_TRANSACTIONS
+                    delay(700)
+                    loadingStep = LoadingStep.LOADING_REWARDS
+                    delay(700)
+                    loadingStep = null
+                    onLoginSuccess()
+                }
                 is AuthResult.Error -> {
                     errorMessage = authResult.message
                     isLoading = false
+                    loadingStep = null
                 }
                 AuthResult.Cancelled -> {
                     isLoading = false
+                    loadingStep = null
                 }
             }
         }
+    }
+
+    loadingStep?.let { step ->
+        DynamicLoadingScreen(currentStep = step)
+        return
     }
 
     Box(
@@ -104,6 +123,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 onClick = {
                     if (!isLoading) {
                         errorMessage = null
+                        loadingStep = LoadingStep.AUTHENTICATING
                         launcher.launch(authManager.getSignInIntent())
                     }
                 },

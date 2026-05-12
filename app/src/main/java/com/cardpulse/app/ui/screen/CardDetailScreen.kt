@@ -3,6 +3,7 @@ package com.cardpulse.app.ui.screen
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -60,10 +63,12 @@ fun CardDetailScreen(
         factory = CardDetailViewModel.factory(navController.context, cardId.toInt())
     )
 
+    val card by vm.card.collectAsState()
     val cardDetail by vm.cardDetail.collectAsState()
     val perkProgress by vm.perkProgressList.collectAsState()
     val milestoneProgress by vm.milestoneProgressList.collectAsState()
     val transactions by vm.transactions.collectAsState()
+    val isLoadingMilestones by vm.isLoadingMilestones.collectAsState()
     val loungeAccess = cardDetail?.loungeAccess
     var showAllTransactions by remember { mutableStateOf(false) }
 
@@ -71,12 +76,21 @@ fun CardDetailScreen(
         vm.loadCard()
     }
 
-    val card = cardDetail?.card ?: return
+    val currentCard = card
+    if (currentCard == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(card.cardName.ifBlank { "Card Details" }) },
+                title = { Text(currentCard.cardName.ifBlank { "Card Details" }) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -84,7 +98,7 @@ fun CardDetailScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = { navController.navigate("add_card/${card.id}") }
+                        onClick = { navController.navigate("add_card/${currentCard.id}") }
                     ) {
                         Icon(
                             Icons.Default.Edit,
@@ -94,7 +108,7 @@ fun CardDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(android.graphics.Color.parseColor(card.color))
+                    containerColor = safeCardColor(currentCard.color)
                 )
             )
         }
@@ -110,18 +124,18 @@ fun CardDetailScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(android.graphics.Color.parseColor(card.color))
+                        containerColor = safeCardColor(currentCard.color)
                     )
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
                         Text(
-                            text = card.bankName,
+                            text = currentCard.bankName,
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White
                         )
                         Spacer(modifier = Modifier.height(32.dp))
                         Text(
-                            text = "•••• ${card.last4Digits}",
+                            text = "•••• ${currentCard.last4Digits}",
                             style = MaterialTheme.typography.headlineSmall,
                             color = Color.White
                         )
@@ -137,7 +151,7 @@ fun CardDetailScreen(
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
                                 Text(
-                                    text = card.cardName,
+                                    text = currentCard.cardName,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Color.White
                                 )
@@ -149,7 +163,7 @@ fun CardDetailScreen(
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
                                 Text(
-                                    text = "₹${card.currentOutstanding}",
+                                    text = "₹${currentCard.currentOutstanding}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Color.White
                                 )
@@ -161,7 +175,7 @@ fun CardDetailScreen(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            if (card.isAutoFetched && !card.isVerified) {
+            if (currentCard.isAutoFetched && !currentCard.isVerified) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -193,7 +207,7 @@ fun CardDetailScreen(
                                     )
                                 }
                             }
-                            Button(onClick = { navController.navigate("add_card/${card.id}") }) {
+                            Button(onClick = { navController.navigate("add_card/${currentCard.id}") }) {
                                 Text("Edit")
                             }
                         }
@@ -273,7 +287,28 @@ fun CardDetailScreen(
                 )
             }
 
-            if (milestoneProgress.isNotEmpty()) {
+            if (isLoadingMilestones) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Loading rewards...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!isLoadingMilestones && milestoneProgress.isNotEmpty()) {
                 items(milestoneProgress) { progress ->
                     ExpandableMilestoneCard(
                         title = progress.milestone.n,
@@ -289,7 +324,7 @@ fun CardDetailScreen(
                 }
             }
 
-            if (perkProgress.isNotEmpty()) {
+            if (!isLoadingMilestones && perkProgress.isNotEmpty()) {
                 item {
                     Text(
                         text = "Rewards",
@@ -313,7 +348,7 @@ fun CardDetailScreen(
                 }
             }
 
-            if (milestoneProgress.isEmpty() && perkProgress.isEmpty()) {
+            if (!isLoadingMilestones && milestoneProgress.isEmpty() && perkProgress.isEmpty()) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -585,4 +620,9 @@ private fun progressText(currentAmount: Double, targetAmount: Double, rewardType
 
 private fun formatCurrency(amount: Double): String {
     return NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(amount)
+}
+
+private fun safeCardColor(color: String): Color {
+    return runCatching { Color(android.graphics.Color.parseColor(color)) }
+        .getOrElse { Color(0xFF1A73E8) }
 }

@@ -6,6 +6,7 @@ import com.cardpulse.app.model.CardWithProgress
 import com.cardpulse.app.model.ResolvedCard
 import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.util.cleanAndNormalizeBankName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,12 +21,16 @@ class CardRepository(private val context: Context) {
 
     suspend fun getAllBanks(): List<BankOption> = withContext(Dispatchers.IO) {
         val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
-        catalog.banks.map { bank ->
-            BankOption(
-                code = bank.b,
-                name = bank.b
-            )
-        }.sortedBy { it.name }
+        catalog.banks
+            .map { bank ->
+                BankOption(
+                    code = bank.b,
+                    name = cleanAndNormalizeBankName(bank.b)
+                )
+            }
+            .filter { it.name.isNotBlank() && !it.name.equals("unknown", ignoreCase = true) }
+            .distinctBy { it.name.lowercase() }
+            .sortedBy { it.name }
     }
 
     suspend fun getCardVariantsForBank(bankCode: String): List<CardVariantOption> =
@@ -74,6 +79,10 @@ class CardRepository(private val context: Context) {
 
     suspend fun getAllCardsSync(): List<Card> = withContext(Dispatchers.IO) {
         cardDao.getAllCardsSync()
+    }
+
+    suspend fun getCardById(cardId: Int): Card? = withContext(Dispatchers.IO) {
+        cardDao.getCardById(cardId)
     }
 
     fun getActiveCardsFlow(): Flow<List<Card>> = cardDao.getActiveCardsFlow()

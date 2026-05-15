@@ -1,0 +1,152 @@
+---
+
+### Credit Card JSON Ruleset v2
+
+#### 1. Root structure
+- Root contains: `v`, `banks`
+- `banks[]` contains bank objects (no bank appears more than once)
+- Each bank may contain: `b`, `bn`, `p`, `m`, `g`
+
+#### 2. Hierarchy
+Inheritance order: **bank → group → card**
+Lower levels inherit higher-level perks and milestones unless excluded (`x`) or overridden (`md`).
+
+#### 3. Key meanings
+| Key | Meaning |
+|---|---|
+| `b` | bankName |
+| `n` | name |
+| `nw` | cardNetwork |
+| `t` | cardType |
+| `af` | annualFee |
+| `jf` | joiningFee |
+| `fs` | feeWaiverSpend |
+| `fm` | foreignMarkup |
+| `rv` | rewardValue |
+| `cl` | color |
+| `cf` | confidence |
+| `p` | perks |
+| `m` | milestones |
+| `g` | groups |
+| `c` | cards |
+| `x` | exclusions |
+| `bn` | BIN/IIN metadata |
+| `cv` | caveats |
+| `vp` | visits/passes (for lounge) |
+| `fl` | flag (free-text, used for special markers) |
+| `cb` | co-brand merchant name (string) |
+
+#### 4. Co-brand handling (NEW)
+- Co-branded cards (Swiggy HDFC, Tata Neu HDFC, Amazon Pay ICICI, Flipkart Axis, IRCTC SBI, BPCL SBI, MakeMyTrip ICICI, Yatra SBI, etc.) are **NOT separate banks**.
+- They are stored as **groups under the issuing bank**.
+- Optional `cb` field at group/card level identifies the co-brand merchant.
+- Example: `{"n":"Swiggy","cb":"Swiggy",...}` under HDFC Bank.
+
+#### 5. Card type codes (`t`)
+| Code | Meaning |
+|---|---|
+| `en` | entry-level |
+| `pr` | premium |
+| `p` | platinum |
+| `sp` | super-premium |
+| `cb` | cashback |
+| `lt` | lifetime-free |
+| `co` | corporate |
+| `se` | secured |
+| `ft` | fintech (includes prepaid+credit-line hybrids and NBFC credit cards) |
+
+#### 6. Network codes (`nw`)
+| Code | Meaning |
+|---|---|
+| `v` | Visa |
+| `mc` | Mastercard |
+| `rp` | RuPay |
+| `amex` | American Express |
+| `dc` | Diners Club |
+
+#### 7. Reward types (`rt`)
+| Code | Meaning |
+|---|---|
+| `p` | points |
+| `c` | cashback |
+| `mi` | miles |
+| `v` | voucher |
+| `w` | waiver |
+| `l` | lounge |
+| `f` | fee waiver/EMI |
+| `i` | insurance |
+| `g` | golf |
+| `co` | concierge |
+| `s` | service (spa, salon, club memberships) ← NEW |
+| `d` | discount (% off, not cashback) ← NEW |
+| `b` | BOGO / buy-1-get-1 ← NEW |
+
+#### 8. Cycle types (`cy`)
+| Code | Meaning |
+|---|---|
+| `o` | one-time |
+| `m` | monthly |
+| `q` | quarterly |
+| `a` | annual |
+
+#### 9. BIN/IIN metadata
+- `bn` can appear at bank, group, or card level
+- Subkeys: `px` (exact prefixes), `rg` (ranges), `ln` (valid lengths)
+- BIN is a **hint**, not unique truth. Low-confidence BINs allowed (per option 2 strategy).
+- May be **omitted entirely** for low-confidence cards.
+
+#### 10. Upto structure (`up`)
+- `null` or object:
+  - `{"t":"sp","v":20000}` → spend cap
+  - `{"t":"rw","v":1000}` → reward cap
+
+#### 11. Modified structure (`md`)
+Used when a perk is common to a group but differs for specific cards. Only store fields that differ.
+
+#### 12. Confidence (`cf`)
+- `h` = high (verified)
+- `m` = medium (card exists; major perks correct; minor details unverified)
+- `l` = low (card exists; minimal perk data; bank-level inheritance only)
+
+#### 13. Caveat codebook (UPDATED)
+| Code | Meaning |
+|---|---|
+| `c1` | No rewards on fuel spends |
+| `c2` | No rewards on wallet loads |
+| `c3` | No rewards on rent payments |
+| `c4` | No rewards on government or utility payments |
+| `c5` | Unlimited lounge access |
+| `c6` | Domestic lounge access only |
+| `c7` | Reward redemption attracts GST |
+| `c8` | Foreign markup applies |
+| `c9` | Priority Pass included |
+| `c10` | Reward points expire after a fixed period |
+| `c11` | Fees vary by variant |
+| `c12` | Excludes insurance premium spends |
+| `c13` | Excludes educational payments |
+| `c14` | Excludes EMI transactions |
+| `c15` | Excludes cash-equivalent spends |
+| `c16` | Reward capped per statement cycle ← NEW |
+| `c17` | Co-brand merchant exclusive (e.g., Swiggy/Flipkart only) ← NEW |
+| `c18` | Network exclusive benefit (Visa/MC-only) ← NEW |
+| `c19` | High income criteria applies ← NEW |
+| `c20` | Card discontinued for new applicants ← NEW |
+| `c21` | UPI transactions earn rewards (RuPay-on-UPI cards) ← NEW |
+| `c22` | Prepaid/credit-line hybrid product ← NEW |
+| `c23` | Spa/wellness benefits available ← NEW |
+| `c24` | BOGO offers via specific partners ← NEW |
+| `c25` | Issued via NBFC / partner-bank ← NEW |
+
+#### 14. Card-type to flag mapping
+- For discontinued cards: include `"fl":"discontinued"` and set `cf:"l"`, also add caveat `c20`.
+
+#### 15. Extraction logic (unchanged)
+1. Filter by `b` (bank)
+2. Filter by `g[].n` (group)
+3. Filter by `c[].n` (card name)
+4. Resolve inheritance: combine parent `p`/`m` with child
+5. Apply `x` exclusions
+6. Apply `md` modifications
+7. Resolve BIN: match against first digits
+
+---

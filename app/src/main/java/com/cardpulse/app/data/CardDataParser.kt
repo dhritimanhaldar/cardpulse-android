@@ -1,10 +1,31 @@
 package com.cardpulse.app.data
 
+import android.content.Context
 import com.cardpulse.app.model.*
 import com.google.gson.Gson
+import java.io.IOException
 
 object CardDataParser {
     private val gson = Gson()
+    private var cachedCardData: CardDataRoot? = null
+
+    fun loadCardData(context: Context): CardDataRoot? {
+        if (cachedCardData != null) {
+            return cachedCardData
+        }
+
+        return try {
+            val jsonString = context.assets.open("card_data.json")
+                .bufferedReader()
+                .use { it.readText() }
+
+            cachedCardData = gson.fromJson(jsonString, CardDataRoot::class.java)
+            cachedCardData
+        } catch (e: IOException) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     fun parseJson(json: String): CardDataRoot = gson.fromJson(json, CardDataRoot::class.java)
 
@@ -102,14 +123,33 @@ object CardDataParser {
         val cx = card.x.orEmpty()
 
         val perks = mutableListOf<Perk>()
-        perks.addAll(bank.p.orEmpty().filter { it.i !in gx && it.i !in cx })
-        perks.addAll(group.p.orEmpty().filter { it.i !in cx })
-        perks.addAll(card.p.orEmpty())
-
         val milestones = mutableListOf<Milestone>()
-        milestones.addAll(bank.m.orEmpty())
-        milestones.addAll(group.m.orEmpty())
-        milestones.addAll(card.m.orEmpty())
+        val caveats = mutableSetOf<String>()
+
+        // Add bank-level perks and milestones
+        bank.p?.let { perks.addAll(it) }
+        bank.m?.let { milestones.addAll(it) }
+
+        // Add group-level perks and milestones
+        group.p?.let { perks.addAll(it) }
+        group.m?.let { milestones.addAll(it) }
+
+        // Apply group exclusions
+        gx.forEach { exclusionId ->
+            perks.removeAll { it.i == exclusionId }
+            milestones.removeAll { it.i == exclusionId }
+        }
+
+        // Add card-level perks and milestones
+        card.p?.let { perks.addAll(it) }
+        card.m?.let { milestones.addAll(it) }
+        card.cv?.let { caveats.addAll(it) }
+
+        // Apply card exclusions
+        cx.forEach { exclusionId ->
+            perks.removeAll { it.i == exclusionId }
+            milestones.removeAll { it.i == exclusionId }
+        }
 
         return ResolvedCard(
             bankName = bank.b,
@@ -124,10 +164,51 @@ object CardDataParser {
             rewardValue = card.rv ?: 1.0,
             color = card.cl ?: "#1A1A2E",
             confidence = "matched",
-            perks = perks,
-            milestones = milestones,
-            caveats = card.cv.orEmpty()
+            perks = perks.distinctBy { it.i },
+            milestones = milestones.distinctBy { it.i },
+            caveats = caveats.toList()
         )
+    }
+
+    fun matchCardByBIN(
+        cardDataRoot: CardDataRoot,
+        cardNumber: String
+    ): Pair<String, String>? {
+        val first6 = cardNumber.take(6)
+        val first8 = cardNumber.take(8)
+
+        cardDataRoot.banks.forEach { bank ->
+            bank.bn?.let { if (matchesBinMetadata(first6, first8, it)) return Pair(bank.b, "") }
+
+            bank.g.orEmpty().forEach { group ->
+                group.bn?.let {
+                    if (matchesBinMetadata(first6, first8, it)) {
+                        group.c.orEmpty().forEach { card ->
+                            card.bn?.let { if (matchesBinMetadata(first6, first8, it)) return Pair(bank.b, card.n) }
+                        }
+                        return Pair(bank.b, group.n)
+                    }
+                }
+
+                group.c.orEmpty().forEach { card ->
+                    card.bn?.let { if (matchesBinMetadata(first6, first8, it)) return Pair(bank.b, card.n) }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun matchesBinMetadata(
+        first6: String,
+        first8: String,
+        binMetadata: BinMetadata
+    ): Boolean {
+        binMetadata.px.orEmpty().forEach { if (first6.startsWith(it) || first8.startsWith(it)) return true }
+        binMetadata.rg.orEmpty().forEach { range ->
+            val cardPrefix = if (range.f.length <= 6) first6 else first8
+            if (cardPrefix >= range.f && cardPrefix <= range.t) return true
+        }
+        return false
     }
 
     private fun matchesBin(bn: BinMetadata?, prefix: String): Boolean {

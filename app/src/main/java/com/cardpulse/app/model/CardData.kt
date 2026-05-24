@@ -21,7 +21,8 @@ data class GroupEntry(
     val p: List<Perk>? = null,
     val m: List<Milestone>? = null,
     val c: List<CardEntry>? = null,
-    val x: List<String>? = null
+    val x: List<String>? = null,
+    val cb: String? = null
 )
 
 data class CardEntry(
@@ -39,7 +40,9 @@ data class CardEntry(
     val p: List<Perk>? = null,
     val m: List<Milestone>? = null,
     val cv: List<String>? = null,
-    val x: List<String>? = null
+    val x: List<String>? = null,
+    val cb: String? = null,
+    val fl: String? = null
 )
 
 data class BinMetadata(

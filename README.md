@@ -1,505 +1,206 @@
-Perfect! Based on the dev-0.1.0 branch and our entire conversation history, here's a comprehensive README:
+# CardPulse
 
-***
+**Version:** 0.1.0  
+**Branch:** `dev-0.1.0`  
+**Package:** `com.cardpulse.app`  
+**Min SDK:** 26 (Android 8.0)  
+**Target SDK:** 35
 
-# CardPulse 💳
+## 📱 Overview
 
-<div align="center">
+CardPulse is a private Android application designed to intelligently track credit card expenses, milestones, rewards, and lounge eligibility. The app automatically detects your credit cards from Gmail statements and SMS alerts, parses transactions, and tracks your progress toward card-specific rewards and benefits.
 
-**Smart Credit Card Management for India**
+### Key Features
 
-A private Android app for tracking credit card expenses, milestones, rewards, and lounge access eligibility.
-
-[
-[
-[
-[
-
-</div>
-
-***
-
-## 📋 Table of Contents
-
-- [Overview](#overview)
-- [Why CardPulse?](#why-cardpulse)
-- [Features Implemented](#features-implemented)
-- [Architecture](#architecture)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Database Schema](#database-schema)
-- [Card Catalog System](#card-catalog-system)
-- [Setup & Installation](#setup--installation)
-- [Configuration](#configuration)
-- [Roadmap](#roadmap)
-- [Known Issues](#known-issues)
-- [Contributing](#contributing)
-- [Privacy & Security](#privacy--security)
-- [License](#license)
-
-***
-
-## 🎯 Overview
-
-**CardPulse** is a comprehensive credit card management application designed specifically for Indian credit card users. It automatically tracks transactions, calculates milestone progress, monitors reward eligibility, and manages lounge access - all while keeping your data completely private and secure on your device.
-
-### Key Highlights
-
-- 🔐 **100% Private** - All data stored locally on device
-- 📱 **SMS Auto-Parsing** - Automatically reads transaction SMS
-- 📧 **Gmail Integration** - Syncs statements and outstanding balances
-- 🎯 **Milestone Tracking** - Never miss reward thresholds
-- ✈️ **Lounge Access** - Track quarterly/annual lounge visit limits
-- 💰 **Spend Analytics** - Category-wise expense tracking
-- 🎁 **Reward Optimization** - Maximize card benefits
-
-***
-
-## 🤔 Why CardPulse?
-
-### The Problem
-
-Managing multiple credit cards in India is challenging:
-
-- **Milestone Confusion**: Each card has different spend milestones (₹5L, ₹7.5L, ₹10L, etc.)
-- **Reward Complexity**: Different reward rates for categories (5X on travel, 2X on dining)
-- **Lounge Limits**: Annual/quarterly limits vary by card
-- **Fee Waivers**: Miss spend thresholds → pay annual fees
-- **Manual Tracking**: Existing apps don't understand Indian card benefits
-
-### The Solution
-
-CardPulse automatically:
-- ✅ Parses transaction SMS from all major Indian banks
-- ✅ Tracks progress toward milestone thresholds
-- ✅ Calculates real-time reward points
-- ✅ Monitors lounge visit eligibility
-- ✅ Alerts before fee waiver deadlines
-- ✅ Suggests optimal card for each purchase
-
-***
-
-## ✨ Features Implemented
-
-### 🎴 Card Management
-
-- **Multi-Card Support**
-  - Add unlimited credit cards
-  - Custom card nicknames
-  - Visual card colors
-  - Bank-specific branding
-  - Card type detection (VISA/Mastercard/Rupay/Amex)
-
-- **Card Catalog Integration** ✨
-  - Pre-loaded database of 100+ Indian credit cards
-  - Hierarchical bank/group/card structure
-  - Automatic BIN (Bank Identification Number) matching
-  - Card-specific milestone and benefit data
-
-### 💸 Transaction Tracking
-
-- **Automatic SMS Parsing**
-  - Real-time transaction detection from SMS
-  - Supports 14+ major Indian banks:
-    - HDFC Bank, ICICI Bank, Axis Bank
-    - SBI Card, Kotak Bank, IDFC First
-    - IndusInd Bank, Yes Bank, RBL Bank
-    - Standard Chartered, Citi Bank, HSBC
-    - AU Bank, American Express
-  - Extracts: amount, merchant, date, card last 4 digits
-  - Debit/credit classification
-  - Auto-links transactions to correct card
-
-- **Gmail Statement Sync** 📧
-  - Fetches credit card statements via Gmail API
-  - Extracts: outstanding balance, minimum due, payment due date
-  - Parses transaction emails for missed SMS
-  - Verifies SMS transactions against statements
-
-- **Manual Entry**
-  - Add transactions manually
-  - Edit existing transactions
-  - Flag suspicious transactions
-  - Add custom categories
-
-### 🎯 Milestone & Reward Tracking
-
-- **Spend Milestones**
-  - Track progress toward annual/quarterly thresholds
-  - Visual progress bars for each milestone
-  - Real-time spend calculations
-  - Excludes refunds/reversals from totals
-  - Example milestones tracked:
-    - HDFC Infinia: ₹10L annual spend
-    - Axis Magnus: ₹7.5L milestone benefits
-    - ICICI Sapphiro: ₹5L annual fee waiver
-
-- **Reward Points Calculation** (Coming Soon)
-  - Category-based reward multipliers
-  - Base points + bonus points
-  - Accelerated rewards tracking
-  - Points expiry alerts
-
-### ✈️ Lounge Access Management
-
-- **Lounge Tracking**
-  - Quarterly/annual visit limits
-  - Per-card lounge access rules
-  - Domestic vs. International lounges
-  - Companion guest eligibility
-  - Visit history and remaining balance
-
-- **Smart Recommendations**
-  - Suggests best card for lounge access
-  - Prioritizes cards with remaining visits
-  - Warns when approaching limits
-
-### 📊 Analytics & Insights
-
-- **Spend Analytics**
-  - Category-wise breakdown
-  - Monthly/quarterly/annual trends
-  - Card-wise spend distribution
-  - Merchant frequency analysis
-
-- **Fee Optimization**
-  - Annual fee waiver progress
-  - Fee vs. benefits comparison
-  - Suggests card closure if underutilized
-
-### 🔔 Smart Notifications
-
-- **Proactive Alerts**
-  - Large transaction alerts (₹5K+ configurable)
-  - Milestone achievement notifications
-  - Payment due date reminders
-  - Fee waiver deadline warnings
-  - Lounge limit approaching alerts
-  - Duplicate transaction detection
-
-### 🎨 User Interface
-
-- **Modern Material Design 3**
-  - Clean, intuitive interface
-  - Dark mode support (system-based)
-  - Smooth animations
-  - Gesture navigation
-  - Responsive layouts
-
-- **Dashboard**
-  - At-a-glance card overview
-  - Quick access to recent transactions
-  - Milestone progress summary
-  - Upcoming payment alerts
+- 🎯 **Milestone & Reward Tracking**: Track spending milestones for each card with real-time progress
+- 💳 **Auto Card Detection**: Automatically detect credit cards from Gmail statements
+- 📊 **Smart Transaction Parsing**: Extract transactions from SMS and Gmail with intelligent categorization
+- 🏦 **Multi-Bank Support**: Comprehensive support for major Indian banks (HDFC, ICICI, SBI, Axis, AU Bank, Yes Bank, etc.)
+- ✈️ **Lounge Access Tracking**: Track lounge visit eligibility and quarterly limits
+- 🎁 **Perk Management**: Monitor card-specific perks, benefits, and their validity periods
+- 🔔 **Smart Notifications**: Get alerts for unverified cards, payment due dates, and milestone achievements
+- 🎨 **Modern UI**: Clean Material Design 3 interface with dark theme support
+- 🔐 **Privacy First**: All data stays on device, no external servers
 
 ***
 
 ## 🏗️ Architecture
 
-CardPulse follows **Clean Architecture** principles with **MVVM (Model-View-ViewModel)** pattern:
+### Tech Stack
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Presentation Layer                     │
-│  (Jetpack Compose UI + ViewModels)                      │
-├─────────────────────────────────────────────────────────┤
-│                    Domain Layer                          │
-│  (Use Cases, Business Logic, Models)                    │
-├─────────────────────────────────────────────────────────┤
-│                     Data Layer                           │
-│  (Room DB, Repositories, Data Sources)                  │
-├─────────────────────────────────────────────────────────┤
-│               External Integrations                      │
-│  (SMS Reader, Gmail API, Gemini AI)                     │
-└─────────────────────────────────────────────────────────┘
-```
+**Core**
+- **Language**: Kotlin 100%
+- **UI Framework**: Jetpack Compose (Material 3)
+- **Architecture**: MVVM with Repository pattern
+- **Dependency Injection**: Manual DI (ViewModelFactory)
 
-### Key Architectural Decisions
+**Data Layer**
+- **Local Database**: Room SQLite
+- **Preferences**: SharedPreferences
+- **JSON Parsing**: Gson
 
-1. **Local-First**: All data stored in Room database, no cloud sync
-2. **Reactive UI**: Flow/StateFlow for reactive data updates
-3. **Coroutines**: Kotlin coroutines for async operations
-4. **Dependency Injection**: Manual DI (future: Hilt/Koin)
-5. **Single Activity**: Navigation via Compose Navigation
+**Authentication & Cloud**
+- **Authentication**: Firebase Auth (Google Sign-In)
+- **Gmail Integration**: Gmail API v1
+- **Google Services**: Play Services Auth
 
-***
+**Background Processing**
+- **Coroutines**: kotlinx-coroutines-android
+- **Flow**: StateFlow for reactive UI
+- **WorkManager**: Periodic SMS/Gmail sync
 
-## 🛠️ Technology Stack
-
-### Core
-
-- **Language**: Kotlin 1.9.x
-- **Min SDK**: Android 8.0 (API 26)
-- **Target SDK**: Android 14 (API 34)
-- **Build System**: Gradle 8.7 with Kotlin DSL
-
-### UI
-
-- **Jetpack Compose**: Modern declarative UI
-- **Material Design 3**: Latest Material components
-- **Compose Navigation**: Type-safe navigation
-
-### Data & Storage
-
-- **Room Database**: Local SQLite persistence
-- **SharedPreferences**: App settings
-- **Gson**: JSON parsing for card catalog
-
-### Networking & APIs
-
-- **Gmail API**: Statement fetching (via Google API Client)
-- **Google Auth**: OAuth 2.0 for Gmail access
-- **Gemini AI**: Transaction parsing & categorization (optional)
-
-### Background Processing
-
-- **WorkManager**: Periodic syncs
-- **BroadcastReceiver**: SMS interception
-- **Foreground Service**: Real-time transaction monitoring
-
-### Testing (Planned)
-
-- **JUnit 4**: Unit tests
-- **Espresso**: UI tests
-- **MockK**: Mocking framework
+**Permissions**
+- `READ_SMS` - Transaction parsing from bank SMS
+- `INTERNET` - Gmail API access
+- `ACCESS_NETWORK_STATE` - Network connectivity
+- Gmail OAuth scopes: `gmail.readonly`, `gmail.labels`
 
 ***
 
 ## 📁 Project Structure
 
 ```
-cardpulse-android/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/cardpulse/app/
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── CardDao.kt
-│   │   │   │   │   ├── TransactionDao.kt
-│   │   │   │   │   ├── SpendRuleDao.kt
-│   │   │   │   │   ├── LoungeDao.kt
-│   │   │   │   │   ├── NotificationLogDao.kt
-│   │   │   │   │   ├── CardPulseDatabase.kt
-│   │   │   │   │   ├── Converters.kt
-│   │   │   │   │   └── CardRepository.kt
-│   │   │   │   │
-│   │   │   │   ├── model/
-│   │   │   │   │   ├── Models.kt          # Card, Transaction entities
-│   │   │   │   │   ├── CardData.kt        # Catalog data models
-│   │   │   │   │   └── Enums.kt           # Status enums
-│   │   │   │   │
-│   │   │   │   ├── ui/
-│   │   │   │   │   ├── screen/
-│   │   │   │   │   │   ├── DashboardScreen.kt
-│   │   │   │   │   │   ├── CardDetailScreen.kt
-│   │   │   │   │   │   ├── AddCardScreen.kt
-│   │   │   │   │   │   ├── TransactionListScreen.kt
-│   │   │   │   │   │   ├── AnalyticsScreen.kt
-│   │   │   │   │   │   └── SettingsScreen.kt
-│   │   │   │   │   ├── component/
-│   │   │   │   │   │   ├── CardView.kt
-│   │   │   │   │   │   ├── ProgressBar.kt
-│   │   │   │   │   │   └── TransactionItem.kt
-│   │   │   │   │   └── theme/
-│   │   │   │   │       ├── Color.kt
-│   │   │   │   │       ├── Theme.kt
-│   │   │   │   │       └── Type.kt
-│   │   │   │   │
-│   │   │   │   ├── viewmodel/
-│   │   │   │   │   ├── DashboardViewModel.kt
-│   │   │   │   │   ├── CardDetailViewModel.kt
-│   │   │   │   │   ├── AddCardViewModel.kt
-│   │   │   │   │   ├── GmailSyncViewModel.kt
-│   │   │   │   │   └── MilestoneViewModel.kt
-│   │   │   │   │
-│   │   │   │   ├── sms/
-│   │   │   │   │   ├── SmsReader.kt
-│   │   │   │   │   └── SmsReceiver.kt
-│   │   │   │   │
-│   │   │   │   ├── gmail/
-│   │   │   │   │   ├── GmailFetcher.kt
-│   │   │   │   │   └── GmailAuthHelper.kt
-│   │   │   │   │
-│   │   │   │   ├── gemini/
-│   │   │   │   │   └── GeminiService.kt
-│   │   │   │   │
-│   │   │   │   ├── util/
-│   │   │   │   │   ├── DateUtils.kt
-│   │   │   │   │   ├── CurrencyFormatter.kt
-│   │   │   │   │   └── Extensions.kt
-│   │   │   │   │
-│   │   │   │   └── MainActivity.kt
-│   │   │   │
-│   │   │   ├── assets/
-│   │   │   │   ├── card_data.json      # Card catalog (100+ cards)
-│   │   │   │   └── sample.json         # Sample test data
-│   │   │   │
-│   │   │   ├── res/
-│   │   │   │   ├── drawable/          # Icons, logos
-│   │   │   │   ├── values/            # Strings, colors, themes
-│   │   │   │   └── xml/               # Preferences, network config
-│   │   │   │
-│   │   │   └── AndroidManifest.xml
+app/
+├── src/main/
+│   ├── java/com/cardpulse/app/
+│   │   ├── data/                    # Data layer
+│   │   │   ├── CardCatalogLoader.kt       # Loads card catalog from JSON
+│   │   │   ├── CardRepository.kt          # Card data operations
+│   │   │   ├── TransactionRepository.kt   # Transaction data operations
+│   │   │   ├── CardPulseDatabase.kt       # Room database
+│   │   │   ├── CardDao.kt                 # Card database access
+│   │   │   ├── TransactionDao.kt          # Transaction database access
+│   │   │   ├── SmsTransactionParser.kt    # SMS parsing logic
+│   │   │   ├── GmailStatementParser.kt    # Gmail email parsing
+│   │   │   └── MilestoneCalculator.kt     # Milestone progress calculation
 │   │   │
-│   │   └── test/                      # Unit tests (planned)
+│   │   ├── model/                   # Data models
+│   │   │   ├── Models.kt                  # Card, Transaction entities
+│   │   │   ├── Notification.kt            # Notification model
+│   │   │   └── Milestone.kt               # Milestone/Perk model
+│   │   │
+│   │   ├── ui/                      # UI layer
+│   │   │   ├── screen/
+│   │   │   │   ├── DashboardScreen.kt     # Main card list screen
+│   │   │   │   ├── CardDetailScreen.kt    # Card detail with milestones
+│   │   │   │   ├── AddCardScreen.kt       # Add/Edit card form
+│   │   │   │   ├── SignInHubActivity.kt   # Gmail authentication
+│   │   │   │   ├── LoadingScreen.kt       # Dynamic loading with steps
+│   │   │   │   └── NotificationsSheet.kt  # Notifications drawer
+│   │   │   │
+│   │   │   ├── components/
+│   │   │   │   ├── AppDrawer.kt           # Side navigation drawer
+│   │   │   │   ├── CardItem.kt            # Card list item
+│   │   │   │   ├── MilestoneCard.kt       # Milestone progress card
+│   │   │   │   └── FilterChip.kt          # Active filter display
+│   │   │   │
+│   │   │   └── theme/
+│   │   │       ├── Color.kt               # Color definitions
+│   │   │       ├── Theme.kt               # Material theme setup
+│   │   │       └── Type.kt                # Typography definitions
+│   │   │
+│   │   ├── viewmodel/               # ViewModels
+│   │   │   ├── DashboardViewModel.kt      # Dashboard state & logic
+│   │   │   ├── CardDetailViewModel.kt     # Card detail state
+│   │   │   ├── AuthViewModel.kt           # Authentication state
+│   │   │   └── AddCardViewModel.kt        # Add/Edit card state
+│   │   │
+│   │   └── MainActivity.kt          # Single activity app
 │   │
-│   └── build.gradle.kts               # App-level build config
+│   ├── assets/
+│   │   └── card_data.json           # Card catalog (banks, variants, perks)
+│   │
+│   ├── res/
+│   │   ├── values/
+│   │   │   ├── strings.xml
+│   │   │   ├── colors.xml
+│   │   │   └── themes.xml
+│   │   └── drawable/                # Icons and images
+│   │
+│   └── AndroidManifest.xml
 │
-├── gradle/                            # Gradle wrapper
-├── build.gradle.kts                   # Project-level build config
-├── gradle.properties                  # Gradle properties
-├── settings.gradle.kts                # Settings
-└── README.md                          # This file
+├── google-services.json             # Firebase configuration
+└── build.gradle.kts                 # App-level Gradle config
 ```
 
 ***
 
-## 🗄️ Database Schema
+## 💾 Database Schema
 
-CardPulse uses **Room Database** with the following entities:
-
-### **Card** Entity
-
+### Card Entity
 ```kotlin
 @Entity(tableName = "cards")
 data class Card(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val bankName: String,              // e.g., "HDFC Bank"
-    val cardName: String,              // e.g., "Infinia Metal"
-    val last4Digits: String,           // Last 4 digits
-    val cardType: String,              // VISA/Mastercard/Rupay/Amex
-    val cardNetwork: String,           // e.g., "HDFC Infinia"
-    val creditLimit: Double,
-    val billingCycleDay: Int,          // Day billing cycle resets
+    @PrimaryKey(autoGenerate = true) val id: Int,
+    val bankName: String,              // e.g., "HDFC", "ICICI"
+    val cardName: String,              // e.g., "Infinia", "Sapphiro"
+    val last4Digits: String,           // Last 4 digits for identification
+    val cardType: String,              // "Credit" or "Debit"
+    val cardNetwork: String,           // "Visa", "Mastercard", "RuPay", "Amex"
+    val creditLimit: Double,           // Total credit limit
+    val billingCycleDay: Int,          // Day of month (1-31)
     val statementDay: Int,             // Statement generation day
-    val dueDateOffset: Int,            // Days after statement for payment
-    val annualFee: Double,
-    val isAutoFetched: Boolean = false,// Auto-detected from SMS
-    val isVerified: Boolean = false,   // User verified card details
-    val isActive: Boolean = true,
-    val addedOn: Date = Date(),
-    val color: String = "#1A73E8",     // Hex color for card UI
-    val currentOutstanding: Double = 0.0,
-    val minimumDue: Double = 0.0,
-    val paymentDueDate: String? = null
+    val dueDateOffset: Int,            // Days after statement
+    val annualFee: Double,             // Annual fee amount
+    val isAutoFetched: Boolean,        // True if auto-detected from Gmail
+    val isVerified: Boolean,           // True if user verified details
+    val isActive: Boolean,             // False if card closed/inactive
+    val addedOn: Long,                 // Timestamp of card addition
+    val color: String,                 // Hex color for card visual
+    val currentOutstanding: Double?,   // Current outstanding amount
+    val minimumDue: Double?,           // Minimum due amount
+    val paymentDueDate: String?        // Due date string
 )
 ```
 
-### **Transaction** Entity
-
+### Transaction Entity
 ```kotlin
 @Entity(tableName = "transactions")
 data class Transaction(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey(autoGenerate = true) val id: Long,
     val cardId: Int,                   // Foreign key to Card
-    val amount: Double,
-    val merchant: String,
-    val category: String,              // FOOD/TRAVEL/SHOPPING/FUEL/etc.
-    val date: Date,
-    val source: TransactionSource,     // MANUAL/SMS/EMAIL/STATEMENT
-    val rawText: String = "",          // Original SMS/email text
-    val rawEmailId: String? = null,
-    val status: TransactionStatus = CONFIRMED,
-    val isCredit: Boolean = false,     // true for refunds/credits
-    val isFlagged: Boolean = false,    // Fraud/duplicate flag
-    val flagReason: String? = "",
-    val currency: String = "INR",
-    val isInternational: Boolean = false
-)
-```
-
-### **SpendRule** Entity (Milestones)
-
-```kotlin
-@Entity(tableName = "spend_rules")
-data class SpendRule(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val cardId: Int,
-    val ruleName: String,              // e.g., "10L Annual Milestone"
-    val targetAmount: Double,          // e.g., 1000000.0 (₹10L)
-    val currentAmount: Double = 0.0,
-    val resetPeriod: String,           // ANNUAL/QUARTERLY/MONTHLY
-    val periodStart: Date,
-    val periodEnd: Date,
-    val isAchieved: Boolean = false,
-    val rewardType: String,            // BONUS_POINTS/FEE_WAIVER/VOUCHER
-    val rewardValue: String            // e.g., "10000 bonus points"
-)
-```
-
-### **LoungeAccess** Entity
-
-```kotlin
-@Entity(tableName = "lounge_access")
-data class LoungeAccess(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val cardId: Int,
-    val domesticLimit: Int,            // Domestic visits per period
-    val internationalLimit: Int,       // International visits
-    val domesticUsed: Int = 0,
-    val internationalUsed: Int = 0,
-    val resetPeriod: String,           // ANNUAL/QUARTERLY
-    val periodStart: Date,
-    val periodEnd: Date,
-    val guestAllowed: Boolean = false,
-    val guestUsed: Int = 0
-)
-```
-
-### **NotificationLog** Entity
-
-```kotlin
-@Entity(tableName = "notification_log")
-data class NotificationLog(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val cardId: Int,
-    val notificationType: String,      // LARGE_TXN/MILESTONE/DUE_DATE
-    val title: String,
-    val message: String,
-    val sentAt: Date = Date(),
-    val isRead: Boolean = false
+    val amount: Double,                // Transaction amount
+    val merchant: String,              // Merchant name
+    val category: String,              // "Dining", "Shopping", "Travel", etc.
+    val timestamp: Long,               // Transaction timestamp
+    val description: String,           // Full SMS/Email text
+    val source: String,                // "SMS" or "Gmail"
+    val isVerified: Boolean            // User confirmed accuracy
 )
 ```
 
 ***
 
-## 📚 Card Catalog System
+## 🎯 Card Catalog JSON Structure
 
-CardPulse includes a comprehensive **hierarchical card catalog** with 100+ Indian credit cards.
-
-### Catalog Structure
+The app uses `card_data.json` to store comprehensive card information:
 
 ```json
 {
-  "v": 1,
+  "v": "1",
   "banks": [
     {
-      "b": "hdfc",                    // Bank code
-      "bn": "HDFC Bank",              // Bank name
-      "bn_px": ["464618", "444445"],  // BIN prefixes
-      "ln": [16],                     // Card lengths
-      "p": [                          // Perks
-        {"i": "h1", "n": "SmartEMI", ...},
-        {"i": "h2", "n": "Fuel Surcharge Waiver", ...}
-      ],
-      "g": [                          // Groups
+      "b": "HDFC",
+      "bn": {"px": ["512345"], "ln": [16]},
+      "g": [
         {
-          "n": "Infinia",             // Group name
-          "bn": {"px": ["444446"]},   // Group-specific BINs
-          "p": [...],                 // Group perks
-          "c": [                      // Cards
+          "n": "Infinia",
+          "bn": {"px": ["512347"], "ln": [16]},
+          "p": [
             {
-              "n": "Infinia Metal",   // Card name
-              "nw": "v",              // Network: VISA
-              "t": "pr",              // Type: Premium
-              "af": 12500,            // Annual fee
-              "jf": 12500,            // Joining fee
-              "fs": 800000,           // Fee waiver spend
-              "fm": 2,                // Fee multiplier
-              "rv": 1.0,              // Reward value
-              "cl": "#1A1A2E",        // Card color
-              "cf": "h",              // Category focus
-              "bn": {"px": ["469618"]} // Card-specific BIN
+              "i": "m1",
+              "n": "Travel Voucher",
+              "rt": "v",
+              "cy": "a",
+              "mn": 800000
+            }
+          ],
+          "c": [
+            {
+              "n": "Travel Rewards",
+              "rt": "p",
+              "cy": "m",
+              "up": {"t": "rw", "v": "5%"}
             }
           ]
         }
@@ -509,325 +210,400 @@ CardPulse includes a comprehensive **hierarchical card catalog** with 100+ India
 }
 ```
 
-### Supported Banks (100+ Cards)
-
-- **HDFC Bank**: Infinia, Diners Club, Regalia, Millennia
-- **ICICI Bank**: Sapphiro, Emeralde, Rubyx, Platinum
-- **Axis Bank**: Magnus, Reserve, Vistara, Atlas
-- **SBI Card**: Elite, Prime, SimplyCLICK, Air India
-- **Kotak Mahindra**: League, Royale, White, 811
-- **American Express**: Platinum, Gold, Membership Rewards
-- **Standard Chartered**: Ultimate, Super Value, DigiSmart
-- **Citi Bank**: Prestige, Premier Miles, Rewards
-- **HSBC**: Visa Platinum, Cashback, Smart Value
-- **Yes Bank**: FIRST Exclusive, Prosperity Rewards
-- **IndusInd Bank**: Legend, Pioneer, Nexxt
-- **IDFC FIRST**: Wealth, Select, Millenia
-- **RBL Bank**: World Safari, ShopRite, Titanium
-- **AU Bank**: Altura, Vetta, LIT
-
-### BIN Matching Logic
-
-CardPulse automatically identifies cards using:
-
-1. **BIN (Bank Identification Number)** - First 6 digits
-2. **Card Length** - 15/16 digits
-3. **Network Detection** - VISA/Mastercard/Rupay/Amex
-4. **Hierarchical Fallback**:
-   - Exact BIN match (card-level)
-   - Group BIN match (e.g., all Infinia variants)
-   - Bank BIN match (e.g., any HDFC card)
-   - Manual selection
+**Field Abbreviations:**
+- `rt`: Reward Type (`p`=Points, `c`=Cashback, `l`=Lounge, `v`=Voucher, `f`=Fuel, `w`=Waiver, `i`=Insurance, `mi`=Miles)
+- `cy`: Cycle (`m`=Monthly, `q`=Quarterly, `a`=Annual, `o`=One-time)
+- `mn`: Milestone Amount (spend target)
+- `vp`: Visits Per cycle (lounge visits)
+- `up`: Upgrade benefits
 
 ***
 
-## ⚙️ Setup & Installation
+## 🔧 Key Features Explained
+
+### 1. Auto Card Detection
+- Scans Gmail for credit card statements from last 6 months
+- Extracts: Bank name, Card variant, Last 4 digits, Credit limit, Outstanding balance
+- Creates unverified cards that user can review and confirm
+- Matches cards against catalog to load milestones automatically
+
+### 2. Transaction Parsing
+
+**SMS Parsing:**
+- Monitors SMS from bank short codes
+- Extracts: Amount, Merchant, Card last 4 digits, Date
+- Auto-categorizes based on merchant keywords
+- Handles multiple Indian bank SMS formats
+
+**Gmail Parsing:**
+- Reads transaction alert emails
+- Extracts outstanding balance, due dates
+- Parses statement attachments (future feature)
+
+**Current Issues (to be fixed):**
+- Card payment SMS incorrectly treated as expenses
+- Many "Unknown" merchants
+- Duplicate transactions
+- Zero-amount transactions saved
+
+### 3. Milestone Tracking
+
+**Types:**
+- **Spend Milestones**: Reach ₹X spending for reward
+- **Category Perks**: Enhanced rewards on specific categories
+- **Membership Benefits**: Lounge access, insurance, etc.
+
+**Progress Calculation:**
+- Tracks relevant transactions per milestone
+- Respects milestone validity periods (monthly/quarterly/annual)
+- Shows progress bar with current vs target
+- Lists transactions contributing to each milestone
+
+### 4. Smart Filtering & Notifications
+
+**Filters:**
+- By verification status (unverified cards)
+- By bank
+- By card type/network
+- Payment due soon
+- Auto-detected vs manual cards
+
+**Notifications:**
+- Unverified auto-detected cards
+- Payment due within 7 days
+- Milestone achievements
+- Outstanding balance alerts
+
+### 5. Side Drawer Navigation
+
+**Sections:**
+- **Profile**: User info, Gmail account
+- **Notifications**: Clickable notifications that apply filters
+- **Filters**: Checkbox-based multi-select filters
+- **Settings**: Sign out option
+
+**Access:**
+- Hamburger menu (☰) in top bar
+- Swipe from left edge (gesture enabled)
+- Notification/Filter icons
+
+***
+
+## 🚀 Setup Instructions
 
 ### Prerequisites
+- Android Studio Hedgehog (2023.1.1) or newer
+- JDK 17
+- Android SDK 35
+- Firebase account
+- Google Cloud Console project
 
-- **Android Studio**: Arctic Fox or newer
-- **JDK**: 17 or higher
-- **Android Device/Emulator**: API 26+ (Android 8.0+)
+### Firebase Setup
 
-### Clone Repository
+1. **Create Firebase Project:**
+  - Go to [Firebase Console](https://console.firebase.google.com)
+  - Create new project: `cardpulse-all`
+  - Enable Google Analytics (optional)
 
-```bash
-git clone https://github.com/dhritimanhaldar/cardpulse-android.git
-cd cardpulse-android
-git checkout dev-0.1.0
-```
+2. **Add Android App:**
+  - Package name: `com.cardpulse.app`
+  - SHA-1: Generate using `./gradlew signingReport`
+  - Download `google-services.json` to `app/` folder
 
-### Configure API Keys
+3. **Enable Authentication:**
+  - Firebase Console → Authentication → Sign-in method
+  - Enable **Google** provider
+  - Configure OAuth consent screen
 
-Create `local.properties` in project root:
-
-```properties
-# Gmail API (Optional - for statement sync)
-gmail.client.id=YOUR_GMAIL_CLIENT_ID
-gmail.client.secret=YOUR_GMAIL_CLIENT_SECRET
-
-# Gemini AI API (Optional - for AI-powered parsing)
-gemini.api.key=YOUR_GEMINI_API_KEY
-```
+4. **Gmail API Setup:**
+  - Go to [Google Cloud Console](https://console.cloud.google.com)
+  - Enable **Gmail API**
+  - Configure OAuth 2.0 scopes:
+    - `https://www.googleapis.com/auth/gmail.readonly`
+    - `https://www.googleapis.com/auth/gmail.labels`
 
 ### Build & Run
 
 ```bash
-# Clean build
-./gradlew clean
+# Clone repository
+git clone https://github.com/dhritimanhaldar/cardpulse-android.git
+cd cardpulse-android
 
-# Build debug APK
+# Checkout dev branch
+git checkout dev-0.1.0
+
+# Add google-services.json (provided separately)
+# Place in app/ directory
+
+# Build project
 ./gradlew assembleDebug
 
-# Install on connected device
+# Install on device
 ./gradlew installDebug
 
-# Or open in Android Studio and click Run
+# Or open in Android Studio and run
 ```
 
 ***
 
-## 🔧 Configuration
+## 🔑 Required Permissions
 
-### Permissions Required
+**Runtime Permissions:**
+- **READ_SMS**: Required for parsing bank transaction SMS
+- **INTERNET**: Gmail API and Firebase Auth
 
-```xml
-<!-- SMS Reading -->
-<uses-permission android:name="android.permission.RECEIVE_SMS" />
-<uses-permission android:name="android.permission.READ_SMS" />
+**OAuth Permissions:**
+- **Gmail readonly**: Read statements and transaction emails
+- **Gmail labels**: Organize emails (future feature)
 
-<!-- Internet (Gmail API) -->
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-<!-- Notifications -->
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-```
-
-### First-Time Setup
-
-1. **Grant Permissions**: SMS, Notifications
-2. **Add First Card**: Manual entry or auto-detect from SMS
-3. **Optional: Connect Gmail**: For statement sync
-4. **Configure Alerts**: Set thresholds for notifications
+**Permissions Requested At:**
+- Gmail login: During first authentication
+- SMS: On app first launch or when accessing dashboard
 
 ***
 
-## 🗺️ Roadmap
+## 📊 Current Limitations (v0.1.0)
 
-### Version 0.2.0 - Enhanced Tracking (Q2 2026)
+### Known Issues
+1. **Transaction Parsing:**
+  - Card payments incorrectly shown as expenses
+  - High number of "Unknown" merchants
+  - Duplicate transactions appearing
+  - Zero-amount transactions not filtered
+  - Poor merchant name extraction from SMS
 
-- [ ] **Card Editing**: Edit existing card details
-- [ ] **Bank/Card Dropdowns**: Select from catalog instead of manual entry
-- [ ] **Transaction Rematching**: Auto-refresh on card edit
-- [ ] **Duplicate Detection**: Flag duplicate transactions
-- [ ] **Transaction Search**: Filter by date/merchant/category
-- [ ] **Export Data**: CSV/Excel export
+2. **Gmail Integration:**
+  - No HTML table parsing for statements
+  - Limited email type detection
+  - No attachment parsing
 
-### Version 0.3.0 - Rewards & Analytics (Q3 2026)
+3. **UI/UX:**
+  - Loading screen needs better state management
+  - No transaction editing/deletion
+  - No bulk operations
+  - Limited error handling display
 
-- [ ] **Reward Points Calculation**
-  - Base points + category bonuses
-  - Redemption value tracking
-  - Points expiry alerts
-- [ ] **Spend Analytics Dashboard**
-  - Monthly/quarterly trends
-  - Category breakdown charts
-  - Card utilization comparison
-- [ ] **Smart Card Recommendations**
-  - Best card for each category
-  - Optimize reward earning
-  - Fee vs. benefits analysis
+4. **Features:**
+  - No export to CSV/Excel
+  - No spending analytics/charts
+  - No budget tracking
+  - No bill reminders
+  - No multi-user support
 
-### Version 0.4.0 - AI & Automation (Q4 2026)
-
-- [ ] **Gemini AI Integration**
-  - Intelligent transaction categorization
-  - Merchant name normalization
-  - Duplicate detection
-  - Expense insights
-- [ ] **Predictive Alerts**
-  - Milestone progress predictions
-  - Fee waiver deadline warnings
-  - Spending pattern anomalies
-- [ ] **Auto-Categorization**
-  - ML-based category assignment
-  - Merchant learning
-  - Custom rule engine
-
-### Version 0.5.0 - Social & Sharing (Q1 2027)
-
-- [ ] **Multi-User Support**
-  - Add family members
-  - Shared cards tracking
-  - Authorized user management
-- [ ] **Backup & Sync** (Optional)
-  - Encrypted cloud backup
-  - Cross-device sync
-  - Data portability
-- [ ] **Widgets**
-  - Home screen card balance widget
-  - Milestone progress widget
-  - Quick add transaction widget
-
-### Version 1.0.0 - Public Release (Q2 2027)
-
-- [ ] **Comprehensive Testing**
-  - Unit tests (90%+ coverage)
-  - UI tests
-  - Performance optimization
-- [ ] **Security Audit**
-  - Penetration testing
-  - Encryption review
-  - Privacy compliance (GDPR, DPDP)
-- [ ] **Documentation**
-  - User guide
-  - API documentation
-  - Video tutorials
-- [ ] **Play Store Release**
-  - Beta testing program
-  - Public launch
-  - Support infrastructure
-
-### Future Considerations
-
-- **OCR Bill Scanning**: Extract amounts from physical receipts
-- **Bill Splitting**: Split transactions with friends
-- **Investment Tracking**: Link savings/investment accounts
-- **Tax Planning**: Generate tax reports (80C, 80D)
-- **EMI Management**: Track EMI conversions and payments
-- **Insurance Tracking**: Link insurance policies to cards
-- **Wallet Integration**: PhonePe, Paytm, GPay linkage
+### Planned Improvements (v0.2.0)
+- [ ] Enhanced transaction classifier (exclude payments)
+- [ ] Bank-specific SMS pattern registry
+- [ ] Intelligent merchant normalization
+- [ ] Deduplication system
+- [ ] Two-phase transaction processing
+- [ ] Quality scoring for transactions
+- [ ] User correction learning system
+- [ ] HTML email parsing
+- [ ] Spending analytics dashboard
+- [ ] Export functionality
 
 ***
 
-## 🐛 Known Issues
+## 🧪 Testing
 
-### Critical
+### Manual Testing Checklist
 
-- [ ] **Malformed JSON in card_data.json** (Line 81)
-  - Trailing commas causing parse failures
-  - Milestone progress bars not rendering
-  - **Fix**: Remove trailing commas from JSON arrays
+**Authentication:**
+- [ ] Gmail sign-in works
+- [ ] Sign-out clears session
+- [ ] Loading screen shows 4 steps
+- [ ] Dashboard loads after auth
 
-### High Priority
+**Card Management:**
+- [ ] Auto-detect cards from Gmail
+- [ ] Manual card addition
+- [ ] Card editing updates immediately
+- [ ] Card color selection works
+- [ ] Bank dropdown shows no duplicates
 
-- [ ] **Card Matching Failures**
-  - Some BINs not matching to correct cards
-  - Fallback logic too weak
-  - **Fix**: Enhance BIN database coverage
+**Transaction Parsing:**
+- [ ] SMS transactions parsed
+- [ ] Gmail transactions parsed
+- [ ] Transactions appear in list
+- [ ] Categories assigned correctly
+- [ ] No zero-amount transactions
 
-- [ ] **Gemini API Disabled**
-  - Gmail transaction parsing fails silently
-  - **Fix**: Remove Gemini dependency from critical paths
+**Milestones:**
+- [ ] Milestones load from catalog
+- [ ] Progress bars show correctly
+- [ ] Transactions grouped per milestone
+- [ ] Validity periods decoded (no "p/l/i" bugs)
+- [ ] "Milestone" and "Rewards" labels correct
 
-### Medium Priority
+**Navigation:**
+- [ ] Side drawer opens with hamburger menu
+- [ ] Swipe from left opens drawer
+- [ ] Filters apply correctly
+- [ ] Notifications clickable
+- [ ] Filter chip shows active filters
+- [ ] Clear filter works
 
-- [ ] **Duplicate Card Names**
-  - Auto-fetched cards show "ICICI ICICI Sapphiro"
-  - **Fix**: Improve name deduplication logic
-
-- [ ] **SMS Parsing Edge Cases**
-  - Some bank SMS formats not recognized
-  - International transactions missing currency
-  - **Fix**: Expand regex patterns
-
-### Low Priority
-
-- [ ] **UI Polish**
-  - Dark mode colors need refinement
-  - Some animations janky on low-end devices
-  - **Fix**: Optimize Compose performance
+**UI:**
+- [ ] Card visual always visible
+- [ ] No constant "CardPulse" banner
+- [ ] Verification banner shows for auto-cards
+- [ ] Edit button works
+- [ ] Dark theme supported
 
 ***
 
 ## 🤝 Contributing
 
-CardPulse is currently a **private project**. Contributions are by invitation only.
+This is a **private repository** for personal use. However, the architecture and patterns can be referenced for similar projects.
 
-### Development Guidelines
+### Code Style
+- **Language**: Kotlin with idiomatic conventions
+- **Formatting**: ktlint compatible
+- **Architecture**: MVVM + Repository pattern
+- **Compose**: Declarative UI with state hoisting
+- **Coroutines**: Structured concurrency with proper scope management
 
-1. **Branch Strategy**: `dev-0.1.0` for active development
-2. **Code Style**: Follow Kotlin official style guide
-3. **Commit Messages**: Use conventional commits
-4. **Testing**: Write tests for new features
-5. **Documentation**: Update README for major changes
-
-***
-
-## 🔒 Privacy & Security
-
-### Data Privacy
-
-- ✅ **100% Local Storage**: All data stored on device
-- ✅ **No Cloud Sync**: No data sent to external servers (optional backup excluded)
-- ✅ **No Analytics**: No usage tracking or telemetry
-- ✅ **No Ads**: Completely ad-free
-- ✅ **Encrypted at Rest**: Room database encrypted (future)
-
-### Security Best Practices
-
-- SMS/Gmail permissions used only for transaction parsing
-- OAuth 2.0 for Gmail (industry standard)
-- Sensitive data never logged
-- API keys stored in `local.properties` (not committed)
-- Regular security audits planned for v1.0
-
-### Compliance
-
-- **GDPR**: User data sovereignty (local storage)
-- **DPDP Act 2023** (India): No data collection/processing
-- **PCI-DSS**: No card CVV/PIN stored
+### Git Workflow
+- **main**: Production-ready releases
+- **dev-0.1.0**: Active development branch
+- **feature/**: Feature-specific branches
+- **bugfix/**: Bug fix branches
 
 ***
 
 ## 📄 License
 
-**Private License** - This project is private and not available for public use, modification, or distribution without explicit permission from the author.
-
-© 2026 Dhritiman Haldar. All rights reserved.
+**Private Project** - All rights reserved.  
+Not licensed for public use or distribution.
 
 ***
 
-## 📞 Contact & Support
+## 👨‍💻 Developer
 
-- **Author**: Dhritiman Haldar
-- **GitHub**: [@dhritimanhaldar](https://github.com/dhritimanhaldar)
-- **Repository**: [cardpulse-android](https://github.com/dhritimanhaldar/cardpulse-android)
-- **Branch**: `dev-0.1.0`
+**Dhritiman Haldar**  
+📍 Pune, Maharashtra, India  
+📧 [Your Email]  
+🔗 [GitHub](https://github.com/dhritimanhaldar)
+
+***
+
+## 📝 Version History
+
+### v0.1.0 (Current - dev-0.1.0) - May 2026
+**Features:**
+- ✅ Gmail authentication with Google Sign-In
+- ✅ Auto card detection from Gmail statements
+- ✅ SMS transaction parsing (basic)
+- ✅ Manual card management (add/edit/view)
+- ✅ Card catalog with 50+ card variants
+- ✅ Milestone tracking with progress bars
+- ✅ Side drawer navigation
+- ✅ Notifications system
+- ✅ Multi-filter support
+- ✅ Dynamic loading screen
+- ✅ Material 3 UI with dark theme
+
+**Known Issues:**
+- ⚠️ Card payments shown as expenses
+- ⚠️ Many "Unknown" merchants
+- ⚠️ Transaction duplicates
+- ⚠️ Poor merchant name extraction
+
+### v0.0.1 (Initial) - March 2026
+- Basic project setup
+- Firebase integration
+- Room database schema
+
+***
+
+## 🔮 Roadmap
+
+### v0.2.0 - Transaction Intelligence (June 2026)
+- Enhanced SMS/Gmail parser
+- Transaction type classification
+- Deduplication engine
+- Merchant normalization
+- Bank-specific patterns
+- Quality scoring
+
+### v0.3.0 - Analytics & Insights (July 2026)
+- Spending analytics dashboard
+- Category-wise breakdown
+- Monthly trends
+- Milestone achievement history
+- Custom date ranges
+
+### v0.4.0 - Smart Features (August 2026)
+- Budget tracking
+- Bill reminders
+- Due date notifications
+- Reward optimization suggestions
+- Card recommendation engine
+
+### v1.0.0 - Production Release (September 2026)
+- CSV/Excel export
+- Multiple account support
+- Backup & restore
+- Widget support
+- Play Store release
+
+***
+
+## ❓ FAQ
+
+**Q: Is my data secure?**  
+A: Yes. All data is stored locally on your device. Gmail access is read-only and used only for fetching statements. No data is sent to external servers.
+
+**Q: Which banks are supported?**  
+A: Major Indian banks including HDFC, ICICI, SBI, Axis, AU Bank, Yes Bank, Kotak, IndusInd, HSBC, Standard Chartered, and more. See `card_data.json` for full list.
+
+**Q: Why are card payments showing as transactions?**  
+A: This is a known bug in v0.1.0. The parser doesn't yet distinguish between spending and payments. This will be fixed in v0.2.0 with transaction type classification.
+
+**Q: Can I edit auto-detected cards?**  
+A: Yes. Tap the Edit button on the card detail screen to modify any field. This also marks the card as verified.
+
+**Q: Why do I see duplicate transactions?**  
+A: The current parser doesn't deduplicate across SMS and email sources. The deduplication system will be implemented in v0.2.0.
+
+**Q: How are milestones calculated?**  
+A: Milestones are loaded from the card catalog JSON. Progress is calculated by summing relevant transactions (by category, validity period) and comparing to the milestone target.
+
+**Q: Can I add cards not in the catalog?**  
+A: Yes. You can add any card manually. However, milestone tracking requires the card to be in the catalog. Future versions will support custom milestones.
+
+**Q: Why isn't Gmail detecting my cards?**  
+A: Ensure:
+- Gmail API is enabled in Google Cloud Console
+- OAuth consent configured correctly
+- Correct scopes granted (`gmail.readonly`)
+- Statements are in Gmail inbox (not archived)
+- Bank sends statements via email
+
+**Q: How do I report bugs?**  
+A: This is a private project. For the developer's reference, use logcat output and screenshot the issue.
+
+***
+
+## 📚 Additional Documentation
+
+- [Card Catalog Format](docs/CARD_CATALOG.md) _(to be created)_
+- [SMS Parsing Patterns](docs/SMS_PATTERNS.md) _(to be created)_
+- [Database Schema](docs/DATABASE.md) _(to be created)_
+- [API Documentation](docs/API.md) _(to be created)_
 
 ***
 
 ## 🙏 Acknowledgments
 
-- **Jetpack Compose Team**: For modern Android UI toolkit
-- **Material Design**: For comprehensive design system
-- **Indian Credit Card Community**: For card data contributions
-- **Open Source Projects**: Room, Coroutines, Gson, and more
+- **Material Design 3** for UI components
+- **Firebase** for authentication
+- **Gmail API** for email access
+- **Jetpack Compose** for modern Android UI
+- **Room** for local database persistence
 
 ***
 
-<div align="center">
-
-**Built with ❤️ in Pune, India**
-
-*Empowering Indian credit card users to maximize rewards and minimize fees*
-
-</div>
-
-***
-
-## 📊 Project Stats
-
-```
-Language: Kotlin
-Lines of Code: ~5,000
-Commits: 44
-Branch: dev-0.1.0
-Status: Active Development
-Version: 0.1.0-alpha
-```
-
-***
-
-**Last Updated**: May 12, 2026, 2:00 AM IST
+**Last Updated:** May 15, 2026  
+**Branch:** dev-0.1.0  
+**Status:** Active Development 🚧

@@ -12,6 +12,9 @@ import com.cardpulse.app.model.Milestone
 import com.cardpulse.app.model.Perk
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionStatus
+import com.cardpulse.app.parser.TransactionKindClassifier
+import com.cardpulse.app.parser.MilestoneProgressCalculator
+import com.cardpulse.app.parser.TransactionTagger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -35,6 +38,7 @@ class CardDetailViewModel(
         val perk: Perk,
         val qualifyingTxns: List<Transaction>,
         val currentAmount: Double,
+        val targetAmount: Double,
         val progress: Float,
         val isAchieved: Boolean
     )
@@ -43,6 +47,7 @@ class CardDetailViewModel(
         val milestone: Milestone,
         val qualifyingTxns: List<Transaction>,
         val currentAmount: Double,
+        val targetAmount: Double,
         val progress: Float,
         val isAchieved: Boolean
     )
@@ -105,24 +110,16 @@ class CardDetailViewModel(
 
     private fun calculatePerkProgress(perks: List<Perk>, txns: List<Transaction>) {
         val progressList = perks.mapNotNull { perk ->
-            val minThreshold = perk.mn ?: 0
             val cycleStart = getCycleStart(perk.cy)
-
-            val qualifyingTxns = txns.filter { txn ->
-                transactionCountsTowardPerk(txn, perk, cycleStart.time, minThreshold)
-            }
-
-            var currentAmount = qualifyingTxns.sumOf { it.amount }
-
-            perk.up?.let { cap ->
-                if (cap.t == "sp") currentAmount = currentAmount.coerceAtMost(cap.v.toDouble())
-            }
-
-            val targetAmount = perk.up?.v?.toDouble() ?: 0.0
-            val progress = if (targetAmount <= 0.0) 0f else (currentAmount / targetAmount).toFloat().coerceIn(0f, 1f)
-            val isAchieved = targetAmount > 0.0 && currentAmount >= targetAmount
-
-            PerkProgress(perk, qualifyingTxns, currentAmount, progress, isAchieved)
+            val computed = MilestoneProgressCalculator.computeForPerk(perk, txns, cycleStart.time)
+            PerkProgress(
+                perk = perk,
+                qualifyingTxns = computed.eligibleTransactions,
+                currentAmount = computed.currentAmount,
+                targetAmount = computed.denominator,
+                progress = computed.progress,
+                isAchieved = computed.isAchieved
+            )
         }
         _perkProgressList.value = progressList
     }
@@ -130,13 +127,15 @@ class CardDetailViewModel(
     private fun calculateMilestoneProgress(milestones: List<Milestone>, txns: List<Transaction>) {
         val progressList = milestones.map { milestone ->
             val cycleStart = getCycleStart(milestone.cy)
-            val qualifyingTxns = txns.filter { transactionCountsTowardMilestone(it, cycleStart.time) }
-            val currentAmount = qualifyingTxns.sumOf { it.amount }
-            val targetAmount = milestone.ta.toDouble()
-            val progress = (currentAmount / targetAmount).toFloat().coerceIn(0f, 1f)
-            val isAchieved = currentAmount >= targetAmount
-
-            MilestoneProgress(milestone, qualifyingTxns, currentAmount, progress, isAchieved)
+            val computed = MilestoneProgressCalculator.computeForMilestone(milestone, txns, cycleStart.time)
+            MilestoneProgress(
+                milestone = milestone,
+                qualifyingTxns = computed.eligibleTransactions,
+                currentAmount = computed.currentAmount,
+                targetAmount = computed.denominator,
+                progress = computed.progress,
+                isAchieved = computed.isAchieved
+            )
         }
         _milestoneProgressList.value = progressList
     }
@@ -147,8 +146,16 @@ class CardDetailViewModel(
     ): Map<Perk, List<Transaction>> {
         return perks.associateWith { perk ->
             val cycleStart = getCycleStart(perk.cy)
-            val minThreshold = perk.mn ?: 0
-            transactions.filter { transactionCountsTowardPerk(it, perk, cycleStart.time, minThreshold) }
+            transactions.filter {
+                MilestoneProgressCalculator.doesTransactionQualify(
+                    transaction = it,
+                    ruleText = perk.n,
+                    requiredTags = MilestoneProgressCalculator.inferRequiredTags(perk.n),
+                    minTransactionAmount = perk.mn ?: 0,
+                    cycleStartMillis = cycleStart.time,
+                    exclusions = perk.x.orEmpty()
+                )
+            }
         }
     }
 
@@ -157,16 +164,22 @@ class CardDetailViewModel(
         perk: Perk
     ): Double {
         val cycleStart = getCycleStart(perk.cy)
-        val minThreshold = perk.mn ?: 0
         return transactions
-            .filter { transactionCountsTowardPerk(it, perk, cycleStart.time, minThreshold) }
-            .sumOf { it.amount }
+            .filter {
+                MilestoneProgressCalculator.doesTransactionQualify(
+                    transaction = it,
+                    ruleText = perk.n,
+                    requiredTags = MilestoneProgressCalculator.inferRequiredTags(perk.n),
+                    minTransactionAmount = perk.mn ?: 0,
+                    cycleStartMillis = cycleStart.time,
+                    exclusions = perk.x.orEmpty()
+                )
+            }
+            .sumOf { TransactionKindClassifier.signedProgressAmount(it) }
     }
 
     private fun transactionCountsTowardMilestone(txn: Transaction, cycleStartMillis: Long): Boolean {
-        return !txn.isCredit &&
-                txn.status == TransactionStatus.CONFIRMED &&
-                !txn.category.equals("Payment", ignoreCase = true) &&
+        return TransactionKindClassifier.countsTowardSpend(txn) &&
                 txn.date >= cycleStartMillis
     }
 
@@ -217,7 +230,40 @@ class CardDetailViewModel(
                 cal.set(Calendar.SECOND, 0)
                 cal.time
             }
-            else -> Date(0)
+            else -> {
+                cal.set(Calendar.DAY_OF_MONTH, 1)
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.time
+            }
+        }
+    }
+
+    fun updateTransactionTagging(
+        transactionId: Int,
+        kind: String,
+        tags: Set<String>,
+        confidence: Double
+    ) {
+        viewModelScope.launch {
+            val txn = _transactions.value.find { it.id == transactionId } ?: return@launch
+            repository.updateTransaction(
+                txn.copy(
+                    transactionKind = kind,
+                    tags = TransactionTagger.serialize(tags),
+                    tagConfidence = confidence.coerceIn(0.0, 1.0),
+                    isTagUserEdited = true,
+                    isCredit = kind == "PAYMENT" || kind == "REFUND",
+                    category = when (kind) {
+                        "PAYMENT" -> "Payment"
+                        "REFUND" -> "Refund"
+                        "FEE" -> "Fee"
+                        else -> txn.category
+                    }
+                )
+            )
+            loadCard()
         }
     }
 

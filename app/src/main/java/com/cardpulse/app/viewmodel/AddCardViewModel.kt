@@ -517,12 +517,7 @@ class AddCardViewModel : ViewModel() {
             runCatching {
                 val smsReader = SmsReader(context)
                 smsReader.parseTransactionsForCard(card).forEach { transaction ->
-                    val dedupKey = "${transaction.date}_${transaction.amount}_${transaction.merchant}"
-                    if (repository.getTransactionByEmailId(dedupKey) == null &&
-                        repository.getTransactionByDetails(transaction.cardId, transaction.amount, transaction.date) == null
-                    ) {
-                        repository.insertTransaction(transaction.copy(rawEmailId = dedupKey))
-                    }
+                    repository.upsertDedupedTransaction(transaction)
                 }
             }
         }

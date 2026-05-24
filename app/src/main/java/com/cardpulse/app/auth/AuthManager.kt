@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.activity.result.ActivityResult
 import com.cardpulse.app.config.AppConfig
+import com.cardpulse.app.data.CardRepository
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -66,6 +67,7 @@ class AuthManager(private val context: Context) {
     }
 
     suspend fun signOut() {
+        CardRepository(context).clearLocalData()
         firebaseAuth.signOut()
         googleSignInClient.signOut().await()
     }

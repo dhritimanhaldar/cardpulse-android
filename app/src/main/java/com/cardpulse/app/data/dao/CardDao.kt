@@ -35,4 +35,7 @@ interface CardDao {
 
     @Query("UPDATE cards SET isActive = 0 WHERE id = :cardId")
     suspend fun softDeleteCard(cardId: Int)
+
+    @Query("DELETE FROM cards")
+    suspend fun deleteAllCards()
 }

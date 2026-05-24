@@ -1,8 +1,11 @@
 package com.cardpulse.app.viewmodel
 
 import android.app.Application
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cardpulse.app.config.AppConfig
@@ -15,8 +18,11 @@ import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
 import com.cardpulse.app.parser.CardDetectionParser
+import com.cardpulse.app.parser.EmailClassifier
+import com.cardpulse.app.parser.EmailKind
 import com.cardpulse.app.parser.EmailTransactionParser
-import com.cardpulse.app.parser.SmsTransactionParser
+import com.cardpulse.app.parser.TransactionKindClassifier
+import com.cardpulse.app.parser.TransactionTagger
 import com.cardpulse.app.parser.StatementEmailParser
 import com.cardpulse.app.util.cleanCardName
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,8 +65,30 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
             val syncStartedAt = System.currentTimeMillis()
             val lastSuccessfulRefresh = syncPrefs.getLong(KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT, 0L)
                 .takeIf { it > 0L }
+            val lastSuccessfulSmsRefresh = syncPrefs.getLong(KEY_LAST_SUCCESSFUL_SMS_SYNC_AT, 0L)
+                .takeIf { it > 0L }
             try {
                 val existingCards = repository.getAllCards()
+                var newCount = 0
+                val hasSmsPermission = ContextCompat.checkSelfPermission(
+                    getApplication(),
+                    Manifest.permission.READ_SMS
+                ) == PackageManager.PERMISSION_GRANTED
+                val smsSinceMillis = lastSuccessfulSmsRefresh?.let {
+                    (it - AppConfig.GMAIL_INCREMENTAL_OVERLAP_MINUTES * 60 * 1000L).coerceAtLeast(0L)
+                }
+
+                if (hasSmsPermission) {
+                    existingCards.forEach { card ->
+                        smsReader.parseTransactionsForCard(card, smsSinceMillis).forEach { txn ->
+                            repository.upsertDedupedTransaction(txn)
+                            newCount++
+                        }
+                    }
+                } else {
+                    Log.w("CardPulse", "READ_SMS permission missing; skipping SMS ingestion until permission is granted")
+                }
+
                 val statementEmailsFromGmail = gmailFetcher.fetchStatementEmails(lastSuccessfulRefresh)
                 val transactionEmailsFromGmail = gmailFetcher.fetchTransactionEmails(
                     cardLast4 = existingCards.map { it.last4Digits },
@@ -68,8 +96,16 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 )
                 val emails = (statementEmailsFromGmail + transactionEmailsFromGmail)
                     .distinctBy { it.messageId }
+                val classifiedEmails = emails.map { email -> email to EmailClassifier.classify(email) }
+                val ledgerEmails = classifiedEmails
+                    .filter { (_, classification) ->
+                        classification.kind == EmailKind.STATEMENT ||
+                            classification.kind == EmailKind.TRANSACTION_ALERT ||
+                            classification.kind == EmailKind.PAYMENT_ALERT
+                    }
+                    .map { (email, _) -> email }
 
-                val detectedCards = CardDetectionParser.detectCards(emails)
+                val detectedCards = CardDetectionParser.detectCards(ledgerEmails)
                 Log.d("CardPulse", "Detected cards: ${detectedCards.map { "${it.bankName} xxxx${it.last4}" }}")
                 for (detected in detectedCards) {
                     val alreadyExists = repository.getAllCards().any { it.last4Digits == detected.last4 }
@@ -111,10 +147,27 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 var cardIdByLast4 = allCards.associate { it.last4Digits to it.id }
 
-                val statementEmails = emails.filter { StatementEmailParser.isStatementEmail(it.subject) }
-                val transactionEmails = emails.filter { !StatementEmailParser.isStatementEmail(it.subject) }
+                if (hasSmsPermission) {
+                    allCards
+                        .filterNot { existing -> existingCards.any { it.id == existing.id } }
+                        .forEach { newCard ->
+                            smsReader.parseTransactionsForCard(newCard, smsSinceMillis).forEach { txn ->
+                                repository.upsertDedupedTransaction(txn)
+                                newCount++
+                            }
+                        }
+                }
 
-                for (email in statementEmails) {
+                val statementEmails = classifiedEmails.filter { (_, classification) ->
+                    classification.kind == EmailKind.STATEMENT
+                }
+                val transactionEmails = classifiedEmails.filter { (_, classification) ->
+                    classification.kind == EmailKind.TRANSACTION_ALERT ||
+                        classification.kind == EmailKind.PAYMENT_ALERT
+                }
+
+                for ((email, classification) in statementEmails) {
+                    Log.d("CardPulse", "Parsing statement email ${email.messageId}: bank=${classification.bankName}")
                     val statement = StatementEmailParser.parse(email)
                     val last4 = statement.last4 ?: continue
                     val card = repository.getAllCards().find { it.last4Digits == last4 } ?: continue
@@ -127,12 +180,11 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                     repository.updateCard(updated)
                 }
 
-                var newCount = 0
                 var geminiCallCount = 0
-                for (email in transactionEmails) {
+                for ((email, classification) in transactionEmails) {
                     if (repository.getTransactionByEmailId(email.messageId) != null) continue
 
-                    var txn = EmailTransactionParser.parse(email, cardIdByLast4)
+                    var txn = EmailTransactionParser.parse(email, cardIdByLast4, classification)
 
                     if (txn == null && geminiCallCount < AppConfig.GEMINI_EMAIL_PARSE_LIMIT) {
                         geminiCallCount++
@@ -142,6 +194,10 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                             bodySnippet = email.body.take(800)
                         )
                         if (geminiResult.isTransaction && geminiResult.amount != null) {
+                            val inferredKind = TransactionKindClassifier.infer(
+                                "${email.subject} ${email.body.take(800)}",
+                                fallbackSpend = classification.kind == EmailKind.TRANSACTION_ALERT
+                            )
                             var cardId = geminiResult.last4?.let { cardIdByLast4[it] }
                             if (geminiResult.last4 != null && geminiResult.bankName != null
                                 && !cardIdByLast4.containsKey(geminiResult.last4)
@@ -175,42 +231,42 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                             }
 
                             cardId = cardId ?: cardIdByLast4.values.firstOrNull() ?: continue
+                            val geminiKind = if (inferredKind.name == "UNKNOWN" && geminiResult.isCredit) {
+                                com.cardpulse.app.parser.LedgerTransactionKind.REFUND
+                            } else {
+                                inferredKind
+                            }
+                            val geminiMerchant = geminiResult.merchant ?: "Unknown"
+                            val geminiTags = TransactionTagger.infer(email.body, geminiMerchant, geminiKind)
 
                             txn = Transaction(
                                 id = 0,
                                 cardId = cardId,
                                 amount = geminiResult.amount,
-                                merchant = geminiResult.merchant ?: "Unknown",
-                                category = geminiResult.category ?: "Others",
+                                merchant = geminiMerchant,
+                                category = TransactionKindClassifier.categoryFor(
+                                    geminiKind,
+                                    geminiResult.category ?: "Others"
+                                ),
                                 date = System.currentTimeMillis(),
                                 source = TransactionSource.GMAIL,
                                 rawText = email.body,
                                 rawEmailId = email.messageId,
                                 status = TransactionStatus.CONFIRMED,
-                                isCredit = geminiResult.isCredit,
+                                isCredit = TransactionKindClassifier.isCreditLike(geminiKind) || geminiResult.isCredit,
                                 isFlagged = false,
                                 flagReason = null,
                                 currency = "INR",
-                                isInternational = false
+                                isInternational = false,
+                                transactionKind = geminiKind.name,
+                                tags = TransactionTagger.serialize(geminiTags.tags),
+                                tagConfidence = geminiTags.confidence
                             )
                         }
                     }
 
                     if (txn != null) {
-                        repository.insertTransaction(txn)
-                        newCount++
-                    }
-                }
-
-                if (lastSuccessfulRefresh == null || emails.isNotEmpty()) {
-                    val smsList = repository.getAllCards().flatMap { smsReader.parseTransactionsForCard(it) }
-                    for (txn in smsList) {
-                        val dedupKey = "${txn.date}_${txn.amount}_${txn.merchant}"
-                        if (repository.getTransactionByEmailId(dedupKey) != null ||
-                            repository.getTransactionByDetails(txn.cardId, txn.amount, txn.date) != null
-                        ) continue
-                        val txnWithId = txn.copy(rawEmailId = dedupKey)
-                        repository.insertTransaction(txnWithId)
+                        repository.upsertDedupedTransaction(txn)
                         newCount++
                     }
                 }
@@ -218,6 +274,11 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 syncPrefs.edit()
                     .putLong(KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT, syncStartedAt)
                     .apply()
+                if (hasSmsPermission) {
+                    syncPrefs.edit()
+                        .putLong(KEY_LAST_SUCCESSFUL_SMS_SYNC_AT, syncStartedAt)
+                        .apply()
+                }
                 _syncState.value = SyncState.Done(newCount)
             } catch (e: Exception) {
                 _syncState.value = SyncState.Error(e.message ?: "Sync failed")
@@ -242,5 +303,6 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
     companion object {
         private const val SYNC_PREFS = "cardpulse_sync"
         private const val KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT = "last_successful_gmail_sync_at"
+        private const val KEY_LAST_SUCCESSFUL_SMS_SYNC_AT = "last_successful_sms_sync_at"
     }
 }

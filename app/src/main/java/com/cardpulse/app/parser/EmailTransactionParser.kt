@@ -1,5 +1,6 @@
 package com.cardpulse.app.parser
 
+import android.util.Log
 import com.cardpulse.app.data.RawEmailData
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
@@ -8,6 +9,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 object EmailTransactionParser {
+    private const val TAG = "EmailTransactionParser"
 
     private val amountRegex = Regex(
         """(?:Rs\.?\s*|INR\s*|₹\s*)([\d,]+(?:\.\d{1,2})?)""",
@@ -19,27 +21,31 @@ object EmailTransactionParser {
         RegexOption.IGNORE_CASE
     )
 
-    fun parse(email: RawEmailData, cardIdByLast4: Map<String, Int>): Transaction? {
-        val isDefinitelyTransaction = email.subject.lowercase().let {
-            it.contains("transaction alert") || it.contains("debit alert") ||
-                    it.contains("credit alert") || it.contains("payment alert") ||
-                    it.contains("amount debited") || it.contains("has been debited")
-        }
-
-        if (!isDefinitelyTransaction) {
-            val junkSubjects = listOf(
-                "view this message in html", "html version", "unsubscribe",
-                "confirm your", "verify your", "welcome to", "ensure access",
-                "mother's day", "summer travel", "chapter", "credit limit", "imposters",
-                "easy emi", "gift card", "forex card", "personal loan", "higher education",
-                "happy", "meet the", "zero markup", "delivering strong", "think before",
-                "otp for", "one time password", "downtime notification"
-            )
-            if (junkSubjects.any { email.subject.lowercase().contains(it) }) return null
-            if (email.subject.lowercase().contains("view this message")) return null
+    fun parse(
+        email: RawEmailData,
+        cardIdByLast4: Map<String, Int>,
+        classification: EmailClassification? = null
+    ): Transaction? {
+        val resolvedClassification = classification ?: EmailClassifier.classify(email)
+        if (resolvedClassification.kind != EmailKind.TRANSACTION_ALERT &&
+            resolvedClassification.kind != EmailKind.PAYMENT_ALERT
+        ) {
+            Log.d(TAG, "Ignored ${email.messageId}: kind=${resolvedClassification.kind}, reason=${resolvedClassification.reason}")
+            return null
         }
 
         val text = "${email.subject} ${email.body}"
+        val transactionKind = when (resolvedClassification.kind) {
+            EmailKind.PAYMENT_ALERT -> LedgerTransactionKind.PAYMENT
+            else -> TransactionKindClassifier.infer(
+                text = text,
+                fallbackSpend = resolvedClassification.kind == EmailKind.TRANSACTION_ALERT
+            )
+        }
+        if (transactionKind == LedgerTransactionKind.UNKNOWN) {
+            Log.d(TAG, "Ignored ${email.messageId}: transaction kind unknown")
+            return null
+        }
 
         val amount = amountRegex.find(text)
             ?.groupValues?.get(1)
@@ -50,28 +56,24 @@ object EmailTransactionParser {
 
         val rawMerchant = merchantRegex.find(text)?.groupValues?.get(1)?.trim()
             ?: extractFallbackMerchant(email.subject)
-            ?: return null
+            ?: defaultMerchantFor(transactionKind)
 
-        if (rawMerchant.length < 3 || rawMerchant.matches(Regex("\\d+")) || rawMerchant.lowercase().contains("html")) return null
+        if (transactionKind == LedgerTransactionKind.SPEND &&
+            (rawMerchant.length < 3 || rawMerchant.matches(Regex("\\d+")) || rawMerchant.lowercase().contains("html"))
+        ) return null
 
         val last4 = CardDetectionParser.extractLast4(text)
         val cardId = last4?.let { cardIdByLast4[it] } ?: cardIdByLast4.values.firstOrNull() ?: return null
 
         val dateMillis = tryParseDate(email.dateHeader) ?: System.currentTimeMillis()
-        val isCredit = text.contains(Regex("credit|refund|cashback|reversal|credited", RegexOption.IGNORE_CASE))
+        val finalCategory = TransactionKindClassifier.categoryFor(transactionKind, suggestCategory(rawMerchant))
+        val tagging = TransactionTagger.infer(text, rawMerchant, transactionKind)
 
-        val isPayment = text.contains(
-            Regex(
-                "payment received|bill payment|amount paid|payment of|paid towards|payment credited|due paid|minimum due|outstanding paid|autopay|payment successful",
-                RegexOption.IGNORE_CASE
-            )
+        Log.d(
+            TAG,
+            "Parsed ${email.messageId}: bank=${resolvedClassification.bankName}, kind=${resolvedClassification.kind}, " +
+                "transactionKind=$transactionKind, amount=$amount, merchant=$rawMerchant"
         )
-        val finalIsCredit = isPayment || isCredit
-        val finalCategory = when {
-            isPayment -> "Payment"
-            else -> suggestCategory(rawMerchant)
-        }
-
         return Transaction(
             id = 0,
             cardId = cardId,
@@ -83,11 +85,14 @@ object EmailTransactionParser {
             rawText = "${email.subject}\n${email.body}",
             rawEmailId = email.messageId,
             status = TransactionStatus.CONFIRMED,
-            isCredit = finalIsCredit,
+            isCredit = TransactionKindClassifier.isCreditLike(transactionKind),
             isFlagged = false,
             flagReason = "",
             currency = "INR",
-            isInternational = false
+            isInternational = false,
+            transactionKind = transactionKind.name,
+            tags = TransactionTagger.serialize(tagging.tags),
+            tagConfidence = tagging.confidence
         )
     }
 
@@ -97,6 +102,15 @@ object EmailTransactionParser {
             RegexOption.IGNORE_CASE
         ).find(subject)
         return match?.groupValues?.get(1)?.trim()
+    }
+
+    private fun defaultMerchantFor(kind: LedgerTransactionKind): String {
+        return when (kind) {
+            LedgerTransactionKind.PAYMENT -> "Card Payment"
+            LedgerTransactionKind.REFUND -> "Card Refund"
+            LedgerTransactionKind.FEE -> "Card Fee"
+            else -> "Unknown Merchant"
+        }
     }
 
     private fun suggestCategory(merchant: String): String {

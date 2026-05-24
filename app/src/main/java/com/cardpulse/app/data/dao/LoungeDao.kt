@@ -13,4 +13,7 @@ interface LoungeDao {
 
     @Update
     suspend fun update(loungeAccess: LoungeAccess)
+
+    @Query("DELETE FROM lounge_access")
+    suspend fun deleteAllLoungeAccess()
 }

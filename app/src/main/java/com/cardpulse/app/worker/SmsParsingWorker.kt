@@ -18,18 +18,19 @@ class SmsParsingWorker(
     override suspend fun doWork(): Result {
         val repository = CardRepository(applicationContext)
         val smsReader = SmsReader(applicationContext)
+        val prefs = applicationContext.getSharedPreferences("cardpulse_sync", Context.MODE_PRIVATE)
+        val startedAt = System.currentTimeMillis()
+        val sinceMillis = prefs.getLong("last_successful_sms_sync_at", 0L)
+            .takeIf { it > 0L }
+            ?.let { (it - 10L * 60 * 1000).coerceAtLeast(0L) }
 
         return try {
             repository.getAllCards().forEach { card ->
-                smsReader.parseTransactionsForCard(card).forEach { transaction ->
-                    val dedupKey = "${transaction.date}_${transaction.amount}_${transaction.merchant}"
-                    if (repository.getTransactionByEmailId(dedupKey) == null &&
-                        repository.getTransactionByDetails(transaction.cardId, transaction.amount, transaction.date) == null
-                    ) {
-                        repository.insertTransaction(transaction.copy(rawEmailId = dedupKey))
-                    }
+                smsReader.parseTransactionsForCard(card, sinceMillis).forEach { transaction ->
+                    repository.upsertDedupedTransaction(transaction)
                 }
             }
+            prefs.edit().putLong("last_successful_sms_sync_at", startedAt).apply()
             Result.success()
         } catch (e: Exception) {
             Result.retry()

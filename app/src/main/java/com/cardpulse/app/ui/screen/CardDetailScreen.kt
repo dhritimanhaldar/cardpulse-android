@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -48,6 +51,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.parser.LedgerTransactionKind
+import com.cardpulse.app.parser.TransactionKindClassifier
+import com.cardpulse.app.parser.TransactionTagger
 import com.cardpulse.app.viewmodel.CardDetailViewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -72,6 +78,7 @@ fun CardDetailScreen(
     val isLoadingMilestones by vm.isLoadingMilestones.collectAsState()
     val loungeAccess = cardDetail?.loungeAccess
     var showAllTransactions by remember { mutableStateOf(false) }
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     LaunchedEffect(cardId) {
         vm.loadCard()
@@ -275,7 +282,7 @@ fun CardDetailScreen(
                     }
                 } else {
                     items(transactions) { transaction ->
-                        TransactionRow(transaction)
+                        TransactionRow(transaction, onClick = { selectedTransaction = transaction })
                     }
                 }
                 return@LazyColumn
@@ -318,9 +325,10 @@ fun CardDetailScreen(
                         cycle = progress.milestone.cy,
                         rewardType = progress.milestone.rt,
                         currentAmount = progress.currentAmount,
-                        targetAmount = progress.milestone.ta.toDouble(),
+                        targetAmount = progress.targetAmount,
                         isAchieved = progress.isAchieved,
-                        transactions = progress.qualifyingTxns
+                        transactions = progress.qualifyingTxns,
+                        onTransactionClick = { selectedTransaction = it }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -342,9 +350,10 @@ fun CardDetailScreen(
                         cycle = progress.perk.cy,
                         rewardType = progress.perk.rt,
                         currentAmount = progress.currentAmount,
-                        targetAmount = progress.perk.up?.v?.toDouble() ?: 0.0,
+                        targetAmount = progress.targetAmount,
                         isAchieved = progress.isAchieved,
-                        transactions = progress.qualifyingTxns
+                        transactions = progress.qualifyingTxns,
+                        onTransactionClick = { selectedTransaction = it }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -412,6 +421,23 @@ fun CardDetailScreen(
             }
         }
     }
+
+    selectedTransaction?.let { txn ->
+        TransactionTaggingDialog(
+            transaction = txn,
+            milestoneRows = milestoneProgress
+                .filter { it.qualifyingTxns.any { qualifying -> qualifying.id == txn.id } }
+                .map { it.milestone.n to it.progress },
+            rewardRows = perkProgress
+                .filter { it.qualifyingTxns.any { qualifying -> qualifying.id == txn.id } }
+                .map { it.perk.n to it.progress },
+            onDismiss = { selectedTransaction = null },
+            onSave = { kind, tags, confidence ->
+                vm.updateTransactionTagging(txn.id, kind.name, tags, confidence)
+                selectedTransaction = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -423,7 +449,8 @@ fun ExpandableMilestoneCard(
     currentAmount: Double,
     targetAmount: Double,
     isAchieved: Boolean,
-    transactions: List<Transaction>
+    transactions: List<Transaction>,
+    onTransactionClick: (Transaction) -> Unit = {}
 ) {
     val progress = if (targetAmount <= 0.0) 0f else (currentAmount / targetAmount).toFloat().coerceIn(0f, 1f)
     var expanded by remember { mutableStateOf(false) }
@@ -495,7 +522,8 @@ fun ExpandableMilestoneCard(
                             .forEach { (category, categoryTxns) ->
                                 TransactionGroup(
                                     category = category,
-                                    transactions = categoryTxns
+                                    transactions = categoryTxns,
+                                    onTransactionClick = onTransactionClick
                                 )
                             }
                     }
@@ -508,7 +536,8 @@ fun ExpandableMilestoneCard(
 @Composable
 fun TransactionGroup(
     category: String,
-    transactions: List<Transaction>
+    transactions: List<Transaction>,
+    onTransactionClick: (Transaction) -> Unit = {}
 ) {
     Column(modifier = Modifier.padding(top = 6.dp)) {
         Row(
@@ -520,24 +549,34 @@ fun TransactionGroup(
                 style = MaterialTheme.typography.labelLarge
             )
             Text(
-                text = formatCurrency(transactions.sumOf { it.amount }),
+                text = formatCurrency(
+                    transactions.sumOf { TransactionKindClassifier.signedProgressAmount(it) }.coerceAtLeast(0.0)
+                ),
                 style = MaterialTheme.typography.labelLarge
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
         transactions.forEach { transaction ->
-            TransactionRow(transaction)
+            TransactionRow(transaction, onClick = { onTransactionClick(transaction) })
         }
     }
 }
 
 @Composable
 fun TransactionRow(
-    transaction: Transaction
+    transaction: Transaction,
+    onClick: () -> Unit = {}
 ) {
+    val amountColor = if (TransactionKindClassifier.countsTowardSpend(transaction)) {
+        MaterialTheme.colorScheme.error
+    } else {
+        Color(0xFF2E7D32)
+    }
+    val prefix = if (TransactionKindClassifier.countsTowardSpend(transaction)) "-" else "+"
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -550,10 +589,107 @@ fun TransactionRow(
             )
         }
         Text(
-            formatCurrency(transaction.amount),
-            style = MaterialTheme.typography.bodyMedium
+            "$prefix${formatCurrency(transaction.amount)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = amountColor
         )
     }
+}
+
+@Composable
+fun TransactionTaggingDialog(
+    transaction: Transaction,
+    milestoneRows: List<Pair<String, Float>>,
+    rewardRows: List<Pair<String, Float>>,
+    onDismiss: () -> Unit,
+    onSave: (LedgerTransactionKind, Set<String>, Double) -> Unit
+) {
+    var selectedKind by remember(transaction.id) {
+        mutableStateOf(TransactionKindClassifier.kindOf(transaction))
+    }
+    var selectedTags by remember(transaction.id) {
+        mutableStateOf(TransactionTagger.tagsOf(transaction))
+    }
+    var confidence by remember(transaction.id) {
+        mutableStateOf(transaction.tagConfidence.coerceIn(0.0, 1.0))
+    }
+    val commonTags = listOf(
+        "fuel", "offline", "online", "travel", "dining", "grocery", "utilities",
+        "insurance", "rent", "emi", "wallet_load", "education", "healthcare"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(transaction.merchant) },
+        text = {
+            Column {
+                Text(
+                    text = "Confidence ${(confidence * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Transaction type", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(
+                        LedgerTransactionKind.SPEND,
+                        LedgerTransactionKind.PAYMENT,
+                        LedgerTransactionKind.REFUND,
+                        LedgerTransactionKind.FEE
+                    ).forEach { kind ->
+                        if (selectedKind == kind) {
+                            Button(onClick = { selectedKind = kind }) { Text(kind.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        } else {
+                            OutlinedButton(onClick = { selectedKind = kind }) { Text(kind.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Milestone mapping", style = MaterialTheme.typography.labelLarge)
+                commonTags.forEach { tag ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedTags = if (tag in selectedTags) selectedTags - tag else selectedTags + tag
+                                confidence = 1.0
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = tag in selectedTags,
+                            onCheckedChange = {
+                                selectedTags = if (it) selectedTags + tag else selectedTags - tag
+                                confidence = 1.0
+                            }
+                        )
+                        Text(tag.replace('_', ' '))
+                    }
+                }
+                val rows = milestoneRows + rewardRows
+                if (rows.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Contribution preview", style = MaterialTheme.typography.labelLarge)
+                    rows.take(4).forEach { (label, progress) ->
+                        Text(label, style = MaterialTheme.typography.bodySmall)
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(selectedKind, selectedTags, confidence) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 private fun cycleLabel(cycle: String?): String? {

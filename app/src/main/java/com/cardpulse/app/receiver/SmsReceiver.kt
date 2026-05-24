@@ -10,6 +10,8 @@ import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
 import com.cardpulse.app.parser.SmsTransactionParser
+import com.cardpulse.app.parser.TransactionKindClassifier
+import com.cardpulse.app.parser.TransactionTagger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -54,12 +56,15 @@ class SmsReceiver : BroadcastReceiver() {
                         isFlagged = false,
                         flagReason = null,
                         currency = "INR",
-                        isInternational = false
+                        isInternational = false,
+                        transactionKind = result.transactionKind.name,
+                        tags = TransactionTagger.serialize(result.tags),
+                        tagConfidence = result.tagConfidence
                     )
 
-                    repository.insertTransaction(txn)
+                    repository.upsertDedupedTransaction(txn)
 
-                    if (!result.isCredit) {
+                    if (TransactionKindClassifier.countsTowardSpend(txn)) {
                         repository.recalculateSpendProgress(matchedCard.id)
                     }
 

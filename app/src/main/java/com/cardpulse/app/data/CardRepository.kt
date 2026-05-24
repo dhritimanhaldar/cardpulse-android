@@ -7,6 +7,7 @@ import com.cardpulse.app.model.ResolvedCardCandidate
 import com.cardpulse.app.model.ResolvedCard
 import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.parser.TransactionKindClassifier
 import com.cardpulse.app.ui.icon.BankIconResolver
 import com.cardpulse.app.util.cleanAndNormalizeBankName
 import kotlinx.coroutines.Dispatchers
@@ -141,9 +142,9 @@ class CardRepository(private val context: Context) {
         return cardDao.getActiveCardsFlow().map { cards ->
             cards.map { card ->
                 val rules = spendRuleDao.getRulesForCard(card.id)
-                val txns = transactionDao.getTransactionsForCard(card.id)
+                val txns = dedupeTransactions(transactionDao.getTransactionsForCard(card.id))
                 val lounge = db.loungeDao().getLoungeForCard(card.id)
-                val totalSpent = txns.filter { !it.isCredit }.sumOf { it.amount }
+                val totalSpent = txns.sumOf { TransactionKindClassifier.signedProgressAmount(it) }.coerceAtLeast(0.0)
                 CardWithProgress(
                     card = card,
                     spendRules = rules,
@@ -170,9 +171,9 @@ class CardRepository(private val context: Context) {
     suspend fun getCardWithProgress(cardId: Int): CardWithProgress? = withContext(Dispatchers.IO) {
         val card = cardDao.getCardById(cardId) ?: return@withContext null
         val rules = spendRuleDao.getRulesForCard(cardId)
-        val txns = transactionDao.getTransactionsForCard(cardId)
+        val txns = dedupeTransactions(transactionDao.getTransactionsForCard(cardId))
         val lounge = db.loungeDao().getLoungeForCard(cardId)
-        val totalSpent = txns.filter { !it.isCredit }.sumOf { it.amount }
+        val totalSpent = txns.sumOf { TransactionKindClassifier.signedProgressAmount(it) }.coerceAtLeast(0.0)
         CardWithProgress(
             card = card,
             spendRules = rules,
@@ -183,7 +184,7 @@ class CardRepository(private val context: Context) {
     }
 
     suspend fun getTransactionsForCard(cardId: Int): List<Transaction> = withContext(Dispatchers.IO) {
-        transactionDao.getTransactionsForCard(cardId)
+        dedupeTransactions(transactionDao.getTransactionsForCard(cardId))
     }
 
     suspend fun getTransactionByEmailId(emailId: String): Transaction? = withContext(Dispatchers.IO) {
@@ -198,6 +199,29 @@ class CardRepository(private val context: Context) {
         withContext(Dispatchers.IO) {
             transactionDao.getTransactionByDetails(cardId, amount, date)
         }
+
+    suspend fun upsertDedupedTransaction(txn: Transaction): Long = withContext(Dispatchers.IO) {
+        val cardLast4 = cardDao.getCardById(txn.cardId)?.last4Digits.orEmpty()
+        val normalizedTxn = if (txn.sourceFingerprint.isNullOrBlank() && cardLast4.isNotBlank()) {
+            txn.copy(sourceFingerprint = TransactionDedupe.fingerprint(cardLast4, txn))
+        } else {
+            txn
+        }
+        val candidates = transactionDao.findPotentialDuplicates(
+            cardId = normalizedTxn.cardId,
+            amount = normalizedTxn.amount,
+            date = normalizedTxn.date,
+            toleranceMillis = TransactionDedupe.TIME_TOLERANCE_MILLIS
+        )
+        val duplicate = candidates.firstOrNull { TransactionDedupe.isSameLogicalTransaction(it, normalizedTxn) }
+        if (duplicate != null) {
+            val merged = TransactionDedupe.richerOf(duplicate, normalizedTxn)
+            if (merged != duplicate) transactionDao.updateTransaction(merged)
+            duplicate.id.toLong()
+        } else {
+            transactionDao.insertTransaction(normalizedTxn)
+        }
+    }
 
     suspend fun insertTransaction(txn: Transaction): Long = withContext(Dispatchers.IO) {
         transactionDao.insertTransaction(txn)
@@ -216,13 +240,22 @@ class CardRepository(private val context: Context) {
         // Placeholder for future milestone recalculation.
     }
 
+    suspend fun clearLocalData() = withContext(Dispatchers.IO) {
+        transactionDao.deleteAllTransactions()
+        spendRuleDao.deleteAllRules()
+        db.loungeDao().deleteAllLoungeAccess()
+        db.notificationLogDao().deleteAllNotifications()
+        cardDao.deleteAllCards()
+        context.getSharedPreferences("cardpulse_sync", Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
     suspend fun getAllCardsWithProgress(): List<CardWithProgress> = withContext(Dispatchers.IO) {
         val cards = cardDao.getAllCards()
         cards.map { card ->
             val rules = spendRuleDao.getRulesForCard(card.id)
-            val txns = transactionDao.getTransactionsForCard(card.id)
+            val txns = dedupeTransactions(transactionDao.getTransactionsForCard(card.id))
             val lounge = db.loungeDao().getLoungeForCard(card.id)
-            val totalSpent = txns.filter { !it.isCredit }.sumOf { it.amount }
+            val totalSpent = txns.sumOf { TransactionKindClassifier.signedProgressAmount(it) }.coerceAtLeast(0.0)
             CardWithProgress(
                 card = card,
                 spendRules = rules,
@@ -231,6 +264,19 @@ class CardRepository(private val context: Context) {
                 loungeAccess = lounge
             )
         }
+    }
+
+    private fun dedupeTransactions(transactions: List<Transaction>): List<Transaction> {
+        val result = mutableListOf<Transaction>()
+        transactions.sortedByDescending { it.date }.forEach { txn ->
+            val existingIndex = result.indexOfFirst { TransactionDedupe.isSameLogicalTransaction(it, txn) }
+            if (existingIndex == -1) {
+                result += txn
+            } else {
+                result[existingIndex] = TransactionDedupe.richerOf(result[existingIndex], txn)
+            }
+        }
+        return result.sortedByDescending { it.date }
     }
 }
 

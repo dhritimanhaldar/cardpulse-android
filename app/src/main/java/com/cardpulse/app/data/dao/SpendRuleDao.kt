@@ -16,4 +16,7 @@ interface SpendRuleDao {
 
     @Query("DELETE FROM spend_rules WHERE cardId = :cardId")
     suspend fun deleteRulesForCard(cardId: Int)
+
+    @Query("DELETE FROM spend_rules")
+    suspend fun deleteAllRules()
 }

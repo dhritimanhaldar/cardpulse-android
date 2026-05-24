@@ -43,7 +43,12 @@ data class Transaction(
     val isFlagged: Boolean = false,
     val flagReason: String? = "",
     val currency: String = "INR",
-    val isInternational: Boolean = false
+    val isInternational: Boolean = false,
+    val transactionKind: String = "UNKNOWN",
+    val tags: String = "",
+    val tagConfidence: Double = 0.0,
+    val isTagUserEdited: Boolean = false,
+    val sourceFingerprint: String? = null
 )
 
 enum class TransactionSource { MANUAL, GMAIL, SMS }

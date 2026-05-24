@@ -13,4 +13,7 @@ interface NotificationLogDao {
 
     @Query("UPDATE notification_log SET isRead = 1 WHERE id = :id")
     suspend fun markAsRead(id: Int)
+
+    @Query("DELETE FROM notification_log")
+    suspend fun deleteAllNotifications()
 }

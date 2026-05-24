@@ -12,6 +12,9 @@ import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.Transaction
 import com.cardpulse.app.model.TransactionSource
 import com.cardpulse.app.model.TransactionStatus
+import com.cardpulse.app.parser.LedgerTransactionKind
+import com.cardpulse.app.parser.TransactionKindClassifier
+import com.cardpulse.app.parser.TransactionTagger
 import com.cardpulse.app.util.cleanCardName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,19 +24,23 @@ class SmsReader(private val context: Context) {
 
     private val repository = CardRepository(context)
 
-    suspend fun parseTransactionsForCard(card: Card): List<Transaction> = withContext(Dispatchers.IO) {
+    suspend fun parseTransactionsForCard(
+        card: Card,
+        sinceMillis: Long? = null
+    ): List<Transaction> = withContext(Dispatchers.IO) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             Log.w("SmsReader", "READ_SMS permission not granted")
             return@withContext emptyList()
         }
 
         val transactions = mutableListOf<Transaction>()
-        val oneYearAgo = System.currentTimeMillis() - (365L * 24 * 60 * 60 * 1000)
+        val defaultLookback = System.currentTimeMillis() - (365L * 24 * 60 * 60 * 1000)
+        val startMillis = sinceMillis ?: defaultLookback
         val cursor = context.contentResolver.query(
             Telephony.Sms.CONTENT_URI,
-            arrayOf("address", "body", "date"),
+            arrayOf(Telephony.Sms._ID, "address", "body", "date"),
             "${Telephony.Sms.DATE} > ?",
-            arrayOf(oneYearAgo.toString()),
+            arrayOf(startMillis.toString()),
             "${Telephony.Sms.DATE} DESC"
         )
 
@@ -42,6 +49,7 @@ class SmsReader(private val context: Context) {
                 val address = it.getString(it.getColumnIndexOrThrow("address")) ?: continue
                 val body = it.getString(it.getColumnIndexOrThrow("body")) ?: continue
                 val dateMillis = it.getLong(it.getColumnIndexOrThrow("date"))
+                val smsId = it.getLong(it.getColumnIndexOrThrow(Telephony.Sms._ID))
 
                 if (!isLikelyFromBank(address, card.bankName) && !body.contains(card.bankName, ignoreCase = true)) {
                     continue
@@ -50,7 +58,7 @@ class SmsReader(private val context: Context) {
                 val last4 = extractLast4Digits(body) ?: continue
                 if (last4 != card.last4Digits) continue
 
-                val transaction = parseTransactionSms(body, address, dateMillis, card.id)
+                val transaction = parseTransactionSms(body, address, dateMillis, card.id, "sms:$smsId")
                 transaction?.let { txn ->
                     val existing = repository.getTransactionByDetails(card.id, txn.amount, txn.date)
                     if (existing == null) {
@@ -181,31 +189,49 @@ class SmsReader(private val context: Context) {
     }
 
     private fun parseTransactionSms(body: String, sender: String, dateMillis: Long): Transaction? {
-        return parseTransactionSms(body, sender, dateMillis, 0)
+        return parseTransactionSms(body, sender, dateMillis, 0, null)
     }
 
-    private fun parseTransactionSms(body: String, sender: String, dateMillis: Long, cardId: Int): Transaction? {
-        val amountPattern = """(?:Rs\.?|INR)\s*([0-9,]+\.?\d*)""".toRegex()
+    private fun parseTransactionSms(
+        body: String,
+        sender: String,
+        dateMillis: Long,
+        cardId: Int,
+        sourceId: String?
+    ): Transaction? {
+        val transactionKind = TransactionKindClassifier.infer(body)
+        if (transactionKind == LedgerTransactionKind.UNKNOWN) return null
+
+        val amountPattern = """(?:Rs\.?|INR|₹)\s*([0-9,]+\.?\d*)""".toRegex(RegexOption.IGNORE_CASE)
         val amountMatch = amountPattern.find(body)
         val amount = amountMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
 
-        val merchant = extractMerchant(body) ?: "Unknown"
+        val merchant = extractMerchant(body) ?: when (transactionKind) {
+            LedgerTransactionKind.PAYMENT -> "Card Payment"
+            LedgerTransactionKind.REFUND -> "Card Refund"
+            LedgerTransactionKind.FEE -> "Card Fee"
+            else -> "Unknown"
+        }
+        val tagging = TransactionTagger.infer(body, merchant, transactionKind)
 
         return Transaction(
             cardId = cardId,
             amount = amount,
             merchant = merchant,
-            category = categorizeTransaction(merchant, body),
+            category = TransactionKindClassifier.categoryFor(transactionKind, categorizeTransaction(merchant, body)),
             date = dateMillis,
             source = TransactionSource.SMS,
             rawText = body,
-            rawEmailId = null,
+            rawEmailId = sourceId,
             status = TransactionStatus.CONFIRMED,
-            isCredit = false,
+            isCredit = TransactionKindClassifier.isCreditLike(transactionKind),
             isFlagged = false,
             flagReason = null,
             currency = "INR",
-            isInternational = false
+            isInternational = false,
+            transactionKind = transactionKind.name,
+            tags = TransactionTagger.serialize(tagging.tags),
+            tagConfidence = tagging.confidence
         )
     }
 

@@ -18,7 +18,10 @@ data class SmsTransactionResult(
     val last4Digits: String?,
     val bankName: String?,
     val isCredit: Boolean,
-    val category: String = "General"
+    val category: String = "General",
+    val transactionKind: LedgerTransactionKind = LedgerTransactionKind.UNKNOWN,
+    val tags: Set<String> = emptySet(),
+    val tagConfidence: Double = 0.0
 )
 
 object SmsTransactionParser {
@@ -26,14 +29,14 @@ object SmsTransactionParser {
     private val TAG = "SmsTransactionParser"
 
     private val DEBIT_PATTERNS = listOf(
-        Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,60}(?:debited|spent|used at|payment of)""", RegexOption.IGNORE_CASE),
-        Regex("""(?:debited|spent|payment of)\s+(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE),
+        Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,60}(?:debited|spent|used at|purchase)""", RegexOption.IGNORE_CASE),
+        Regex("""(?:debited|spent|purchase)\s+(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE),
         Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s+(?:debited|spent)""", RegexOption.IGNORE_CASE)
     )
 
     private val CREDIT_PATTERNS = listOf(
-        Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,60}(?:credited|refund|cashback|payment received)""", RegexOption.IGNORE_CASE),
-        Regex("""(?:credited|refund|cashback)\s+(?:with\s+)?(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
+        Regex("""(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)[\s\S]{0,80}(?:credited|refund|cashback|payment received|payment successful|paid towards)""", RegexOption.IGNORE_CASE),
+        Regex("""(?:credited|refund|cashback|payment\s+(?:received|successful|of)|paid\s+towards)\s+(?:with\s+)?(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
     )
 
     private val LAST4_PATTERN = Regex("""(?:card|a/c|acct|account)[\s\S]{0,10}?(\d{4})\b""", RegexOption.IGNORE_CASE)
@@ -88,25 +91,33 @@ object SmsTransactionParser {
             isFlagged = false,
             flagReason = null,
             currency = "INR",
-            isInternational = false
+            isInternational = false,
+            transactionKind = result.transactionKind.name,
+            tags = TransactionTagger.serialize(result.tags),
+            tagConfidence = result.tagConfidence
         )
     }
 
     fun parse(smsBody: String, sender: String): SmsTransactionResult? {
         val body = smsBody.trim()
+        val transactionKind = TransactionKindClassifier.infer(body)
+        if (transactionKind == LedgerTransactionKind.UNKNOWN) {
+            Log.d(TAG, "No ledger kind found in SMS from $sender")
+            return null
+        }
 
         val bankName = BANK_SENDER_MAP.entries.firstOrNull { (key, _) ->
             sender.uppercase().contains(key)
         }?.value
 
         var amount: Double? = null
-        var isCredit = false
+        var isCredit = TransactionKindClassifier.isCreditLike(transactionKind)
 
         for (pattern in DEBIT_PATTERNS) {
             val match = pattern.find(body)
             if (match != null) {
                 amount = match.groupValues[1].replace(",", "").toDoubleOrNull()
-                if (amount != null) { isCredit = false; break }
+                if (amount != null) { isCredit = TransactionKindClassifier.isCreditLike(transactionKind); break }
             }
         }
 
@@ -127,7 +138,12 @@ object SmsTransactionParser {
 
         val last4 = LAST4_PATTERN.find(body)?.groupValues?.get(1)
 
-        var merchant = "Unknown"
+        var merchant = when (transactionKind) {
+            LedgerTransactionKind.PAYMENT -> "Card Payment"
+            LedgerTransactionKind.REFUND -> "Card Refund"
+            LedgerTransactionKind.FEE -> "Card Fee"
+            else -> "Unknown"
+        }
         for (pattern in MERCHANT_PATTERNS) {
             val match = pattern.find(body)
             if (match != null) {
@@ -136,7 +152,9 @@ object SmsTransactionParser {
             }
         }
 
-        Log.d(TAG, "Parsed SMS: amount=$amount, merchant=$merchant, last4=$last4, bank=$bankName, credit=$isCredit")
+        val tagging = TransactionTagger.infer(body, merchant, transactionKind)
+
+        Log.d(TAG, "Parsed SMS: amount=$amount, merchant=$merchant, last4=$last4, bank=$bankName, kind=$transactionKind")
 
         return SmsTransactionResult(
             amount = amount,
@@ -144,7 +162,10 @@ object SmsTransactionParser {
             last4Digits = last4,
             bankName = bankName,
             isCredit = isCredit,
-            category = inferCategory(merchant)
+            category = TransactionKindClassifier.categoryFor(transactionKind, inferCategory(merchant)),
+            transactionKind = transactionKind,
+            tags = tagging.tags,
+            tagConfidence = tagging.confidence
         )
     }
 

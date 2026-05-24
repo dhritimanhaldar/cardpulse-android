@@ -117,7 +117,11 @@ fun DashboardScreen(
 
     val smsPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { }
+    ) { isGranted ->
+        if (isGranted) {
+            gmailSyncViewModel.syncNow()
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (!hasStartedDashboardSync) {

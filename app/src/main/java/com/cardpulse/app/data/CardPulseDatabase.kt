@@ -2,9 +2,11 @@ package com.cardpulse.app.data
 
 import android.content.Context
 import androidx.room.Database
+import androidx.room.migration.Migration
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cardpulse.app.data.dao.CardDao
 import com.cardpulse.app.data.dao.LoungeDao
 import com.cardpulse.app.data.dao.NotificationLogDao
@@ -24,7 +26,7 @@ import com.cardpulse.app.model.Transaction
         LoungeAccess::class,
         NotificationLog::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -47,9 +49,20 @@ abstract class CardPulseDatabase : RoomDatabase() {
                     CardPulseDatabase::class.java,
                     "cardpulse_db"
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
+            }
+        }
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN transactionKind TEXT NOT NULL DEFAULT 'UNKNOWN'")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN tagConfidence REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN isTagUserEdited INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN sourceFingerprint TEXT")
             }
         }
     }

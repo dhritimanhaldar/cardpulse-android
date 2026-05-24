@@ -3,9 +3,11 @@ package com.cardpulse.app.data
 import android.content.Context
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.CardWithProgress
+import com.cardpulse.app.model.ResolvedCardCandidate
 import com.cardpulse.app.model.ResolvedCard
 import com.cardpulse.app.model.SpendRule
 import com.cardpulse.app.model.Transaction
+import com.cardpulse.app.ui.icon.BankIconResolver
 import com.cardpulse.app.util.cleanAndNormalizeBankName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -36,26 +38,74 @@ class CardRepository(private val context: Context) {
     suspend fun getCardVariantsForBank(bankCode: String): List<CardVariantOption> =
         withContext(Dispatchers.IO) {
             val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
-            val bank = catalog.banks.find { it.b.equals(bankCode, ignoreCase = true) }
+            val normalizedBank = cleanAndNormalizeBankName(bankCode)
+            val bank = catalog.banks.find {
+                it.b.equals(bankCode, ignoreCase = true) ||
+                    cleanAndNormalizeBankName(it.b).equals(normalizedBank, ignoreCase = true)
+            }
                 ?: return@withContext emptyList()
 
             val variants = mutableListOf<CardVariantOption>()
             bank.g.orEmpty().forEach { group ->
-                group.c.orEmpty().forEach { card ->
+                val cards = group.c.orEmpty().ifEmpty {
+                    listOf(
+                        com.cardpulse.app.model.CardEntry(
+                            n = group.n,
+                            cl = group.cb
+                        )
+                    )
+                }
+                cards.forEach { card ->
+                    val resolved = CardDataParser.resolveCard(bank, group, card)
                     variants.add(
                         CardVariantOption(
+                            bankCode = bank.b,
+                            bankName = cleanAndNormalizeBankName(bank.b),
                             cardId = card.n,
-                            name = card.n,
+                            name = resolved.cardName,
                             groupName = group.n,
-                            displayName = "${bank.b} ${group.n} ${card.n}"
-                                .replace("\\s+".toRegex(), " ")
-                                .trim()
+                            displayName = resolved.cardName,
+                            cardType = resolved.cardType,
+                            cardNetwork = resolved.cardNetwork,
+                            annualFee = resolved.annualFee.toDouble(),
+                            color = resolved.color
                         )
                     )
                 }
             }
             variants.sortedBy { it.displayName }
         }
+
+    suspend fun matchBanksByPrefix(prefix: String): List<BankOption> = withContext(Dispatchers.IO) {
+        val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
+        CardDataParser.findCandidateMatches(catalog, prefix)
+            .map {
+                BankOption(
+                    code = it.bankCode,
+                    name = cleanAndNormalizeBankName(it.bankName)
+                )
+            }
+            .distinctBy { it.name.lowercase() }
+            .sortedBy { it.name }
+    }
+
+    suspend fun matchCardCandidatesByPrefix(
+        prefix: String,
+        bankCode: String? = null
+    ): List<ResolvedCardCandidate> = withContext(Dispatchers.IO) {
+        val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext emptyList()
+        val normalizedBank = bankCode?.let(::cleanAndNormalizeBankName)
+        CardDataParser.findCandidateMatches(catalog, prefix)
+            .filter { candidate ->
+                normalizedBank == null ||
+                    cleanAndNormalizeBankName(candidate.bankCode).equals(normalizedBank, ignoreCase = true) ||
+                    cleanAndNormalizeBankName(candidate.bankName).equals(normalizedBank, ignoreCase = true)
+            }
+    }
+
+    fun getBankIconKey(bankCodeOrName: String): String? {
+        return BankIconResolver.resolve(bankCodeOrName)?.key
+    }
 
     suspend fun matchCardByBin(bin: String): ResolvedCard? = withContext(Dispatchers.IO) {
         val catalog = CardCatalogLoader.loadCatalog(context) ?: return@withContext null
@@ -190,8 +240,14 @@ data class BankOption(
 )
 
 data class CardVariantOption(
+    val bankCode: String = "",
+    val bankName: String = "",
     val cardId: String,
     val name: String,
     val groupName: String?,
-    val displayName: String
+    val displayName: String,
+    val cardType: String = "Credit Card",
+    val cardNetwork: String = "Unknown",
+    val annualFee: Double = 0.0,
+    val color: String = "#1A1A2E"
 )

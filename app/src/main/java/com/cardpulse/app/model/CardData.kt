@@ -109,3 +109,36 @@ data class ResolvedCard(
     val milestones: List<Milestone>,
     val caveats: List<String>
 )
+
+enum class MatchSpecificity {
+    CARD,
+    GROUP,
+    BANK
+}
+
+data class ResolvedCardCandidate(
+    val bankCode: String,
+    val bankName: String,
+    val groupName: String,
+    val cardName: String,
+    val cardNetwork: String,
+    val cardType: String,
+    val annualFee: Int,
+    val color: String,
+    val specificity: MatchSpecificity,
+    val matchedPrefixSource: String,
+    val supportedLengths: List<Int>,
+    val displayName: String
+)
+
+sealed class CardMatchState {
+    object Empty : CardMatchState()
+    object Matching : CardMatchState()
+    object NotEnoughDigits : CardMatchState()
+    data class Exact(val candidate: ResolvedCardCandidate) : CardMatchState()
+    data class Multiple(
+        val fixedBank: String?,
+        val candidates: List<ResolvedCardCandidate>
+    ) : CardMatchState()
+    object NoMatch : CardMatchState()
+}

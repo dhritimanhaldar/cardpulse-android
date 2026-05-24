@@ -1,6 +1,7 @@
 package com.cardpulse.app.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,11 +36,16 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
     private val gmailFetcher = GmailFetcher(application)
     private val smsReader = SmsReader(application)
     private val geminiService = GeminiService()
+    private val syncPrefs = application.getSharedPreferences(SYNC_PREFS, Context.MODE_PRIVATE)
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState
 
     private val _hasAutoSynced = MutableStateFlow(false)
+
+    fun hasPreviousSuccessfulSync(): Boolean {
+        return syncPrefs.getLong(KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT, 0L) > 0L
+    }
 
     fun autoSyncOnce() {
         if (_hasAutoSynced.value) return
@@ -50,10 +56,16 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
     fun syncNow() {
         viewModelScope.launch {
             _syncState.value = SyncState.Syncing
+            val syncStartedAt = System.currentTimeMillis()
+            val lastSuccessfulRefresh = syncPrefs.getLong(KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT, 0L)
+                .takeIf { it > 0L }
             try {
                 val existingCards = repository.getAllCards()
-                val statementEmailsFromGmail = gmailFetcher.fetchStatementEmails()
-                val transactionEmailsFromGmail = gmailFetcher.fetchTransactionEmails(existingCards.map { it.last4Digits })
+                val statementEmailsFromGmail = gmailFetcher.fetchStatementEmails(lastSuccessfulRefresh)
+                val transactionEmailsFromGmail = gmailFetcher.fetchTransactionEmails(
+                    cardLast4 = existingCards.map { it.last4Digits },
+                    sinceMillis = lastSuccessfulRefresh
+                )
                 val emails = (statementEmailsFromGmail + transactionEmailsFromGmail)
                     .distinctBy { it.messageId }
 
@@ -91,6 +103,9 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
 
                 val allCards = repository.getAllCards()
                 if (allCards.isEmpty()) {
+                    syncPrefs.edit()
+                        .putLong(KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT, syncStartedAt)
+                        .apply()
                     _syncState.value = SyncState.Done(0)
                     return@launch
                 }
@@ -187,17 +202,22 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                 }
 
-                val smsList = repository.getAllCards().flatMap { smsReader.parseTransactionsForCard(it) }
-                for (txn in smsList) {
-                    val dedupKey = "${txn.date}_${txn.amount}_${txn.merchant}"
-                    if (repository.getTransactionByEmailId(dedupKey) != null ||
-                        repository.getTransactionByDetails(txn.cardId, txn.amount, txn.date) != null
-                    ) continue
-                    val txnWithId = txn.copy(rawEmailId = dedupKey)
-                    repository.insertTransaction(txnWithId)
-                    newCount++
+                if (lastSuccessfulRefresh == null || emails.isNotEmpty()) {
+                    val smsList = repository.getAllCards().flatMap { smsReader.parseTransactionsForCard(it) }
+                    for (txn in smsList) {
+                        val dedupKey = "${txn.date}_${txn.amount}_${txn.merchant}"
+                        if (repository.getTransactionByEmailId(dedupKey) != null ||
+                            repository.getTransactionByDetails(txn.cardId, txn.amount, txn.date) != null
+                        ) continue
+                        val txnWithId = txn.copy(rawEmailId = dedupKey)
+                        repository.insertTransaction(txnWithId)
+                        newCount++
+                    }
                 }
 
+                syncPrefs.edit()
+                    .putLong(KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT, syncStartedAt)
+                    .apply()
                 _syncState.value = SyncState.Done(newCount)
             } catch (e: Exception) {
                 _syncState.value = SyncState.Error(e.message ?: "Sync failed")
@@ -217,5 +237,10 @@ class GmailSyncViewModel(application: Application) : AndroidViewModel(applicatio
         "yes bank" -> "#0052A5"
         "rbl" -> "#B71C1C"
         else -> "#37474F"
+    }
+
+    companion object {
+        private const val SYNC_PREFS = "cardpulse_sync"
+        private const val KEY_LAST_SUCCESSFUL_GMAIL_SYNC_AT = "last_successful_gmail_sync_at"
     }
 }

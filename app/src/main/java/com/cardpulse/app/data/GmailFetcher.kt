@@ -19,14 +19,16 @@ class GmailFetcher(private val context: Context) {
 
     private val scope = "oauth2:${AppConfig.GMAIL_SCOPE} ${AppConfig.GMAIL_LABELS_SCOPE}"
 
-    suspend fun fetchTransactionEmails(cardLast4: List<String>): List<RawEmailData> =
+    suspend fun fetchTransactionEmails(
+        cardLast4: List<String>,
+        sinceMillis: Long? = null
+    ): List<RawEmailData> =
         withContext(Dispatchers.IO) {
             try {
                 val account = GoogleSignIn.getLastSignedInAccount(context)
                     ?: return@withContext emptyList()
                 val token = GoogleAuthUtil.getToken(context, account.account!!, scope)
-                val lookbackMs = AppConfig.GMAIL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000L
-                val afterDate = (System.currentTimeMillis() - lookbackMs) / 1000
+                val afterDate = afterEpochSeconds(sinceMillis)
                 val query = buildString {
                     append("(")
                     // Transaction-specific subject terms
@@ -40,13 +42,12 @@ class GmailFetcher(private val context: Context) {
             }
         }
 
-    suspend fun fetchStatementEmails(): List<RawEmailData> = withContext(Dispatchers.IO) {
+    suspend fun fetchStatementEmails(sinceMillis: Long? = null): List<RawEmailData> = withContext(Dispatchers.IO) {
         try {
             val account = GoogleSignIn.getLastSignedInAccount(context)
                 ?: return@withContext emptyList()
             val token = GoogleAuthUtil.getToken(context, account.account!!, scope)
-            val lookbackMs = AppConfig.GMAIL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000L
-            val afterDate = (System.currentTimeMillis() - lookbackMs) / 1000
+            val afterDate = afterEpochSeconds(sinceMillis)
             val query = buildString {
                 append("(")
                 append("subject:(statement OR \"credit card statement\" OR e-statement OR \"bill generated\") ")
@@ -95,6 +96,13 @@ class GmailFetcher(private val context: Context) {
             Log.e("GmailFetcher", "Email fetch error for $messageId: ${e.message}")
             null
         }
+    }
+
+    private fun afterEpochSeconds(sinceMillis: Long?): Long {
+        val fallbackLookbackMs = AppConfig.GMAIL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000L
+        val baselineMillis = sinceMillis ?: (System.currentTimeMillis() - fallbackLookbackMs)
+        val overlapMillis = AppConfig.GMAIL_INCREMENTAL_OVERLAP_MINUTES * 60 * 1000L
+        return ((baselineMillis - overlapMillis).coerceAtLeast(0L)) / 1000
     }
 
     private fun extractHeader(json: JSONObject, name: String): String? {

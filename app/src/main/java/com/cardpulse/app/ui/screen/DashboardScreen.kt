@@ -32,15 +32,12 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,7 +45,6 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,6 +52,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,12 +64,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cardpulse.app.auth.AuthManager
 import com.cardpulse.app.model.Card
 import com.cardpulse.app.model.CardWithProgress
 import com.cardpulse.app.util.cleanAndNormalizeBankName
 import com.cardpulse.app.viewmodel.DashboardViewModel
+import com.cardpulse.app.viewmodel.GmailSyncViewModel
+import com.cardpulse.app.viewmodel.SyncState
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import kotlinx.coroutines.launch
 
@@ -92,103 +92,116 @@ private data class DashboardNotification(
     val isRead: Boolean = false
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     navController: NavController,
-    viewModel: DashboardViewModel
+    viewModel: DashboardViewModel,
+    gmailSyncViewModel: GmailSyncViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val cardsWithProgress by viewModel.cardsWithProgress.collectAsState()
+    val dashboardLoadingState by viewModel.dashboardLoadingState.collectAsState()
+    val syncState by gmailSyncViewModel.syncState.collectAsState()
     val cards = cardsWithProgress.map { it.card }
-    val unverifiedCards = cards.filter { it.isAutoFetched && !it.isVerified }
-    val hasUnverifiedCards = unverifiedCards.isNotEmpty()
     var activeFilter by remember { mutableStateOf<DashboardFilter>(DashboardFilter.None) }
     val filters = buildAvailableFilters(cards)
     val notifications = buildDashboardNotifications(cards)
-    val unreadCount = notifications.count { !it.isRead }
     val visibleCards = applyDashboardFilter(cardsWithProgress, activeFilter)
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val account = remember { GoogleSignIn.getLastSignedInAccount(context) }
     val authManager = remember { AuthManager(context) }
+    var hasRequestedSmsPermission by rememberSaveable { mutableStateOf(false) }
+    var hasStartedDashboardSync by rememberSaveable { mutableStateOf(false) }
+    val shouldBlockForSync = remember { !gmailSyncViewModel.hasPreviousSuccessfulSync() }
 
     val smsPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { }
 
     LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+        if (!hasStartedDashboardSync) {
+            hasStartedDashboardSync = true
+            gmailSyncViewModel.autoSyncOnce()
+        }
+    }
+
+    val isSyncing = shouldBlockForSync && (syncState is SyncState.Idle || syncState is SyncState.Syncing)
+    val loadingStep = when {
+        dashboardLoadingState.isVisible -> DetailedLoadingStep(
+            title = dashboardLoadingState.title,
+            description = dashboardLoadingState.description,
+            percentage = dashboardLoadingState.percentage,
+            stepNumber = dashboardLoadingState.stepNumber,
+            totalSteps = dashboardLoadingState.totalSteps
+        )
+        isSyncing -> DetailedLoadingStep(
+            title = "Reading Statements",
+            description = "Checking Gmail and SMS for detected cards, balances, and transactions.",
+            percentage = 75,
+            stepNumber = 3,
+            totalSteps = 4
+        )
+        else -> null
+    }
+
+    LaunchedEffect(loadingStep == null) {
+        if (loadingStep == null &&
+            !hasRequestedSmsPermission &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            hasRequestedSmsPermission = true
             smsPermissionLauncher.launch(Manifest.permission.READ_SMS)
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        BadgedBox(
-                            badge = {
-                                if (unreadCount > 0) {
-                                    Badge { Text(unreadCount.toString()) }
+    if (loadingStep != null) {
+        DynamicLoadingScreen(currentStep = loadingStep)
+        return
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = true,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                ) {
+                    AppDrawerContent(
+                        userName = account?.displayName ?: "User",
+                        userEmail = account?.email.orEmpty(),
+                        notifications = notifications,
+                        filters = filters,
+                        activeFilter = activeFilter,
+                        onFilterClick = { filter -> activeFilter = filter },
+                        onNotificationClick = { notification ->
+                            activeFilter = notification.filter
+                            scope.launch { drawerState.close() }
+                        },
+                        onSignOut = {
+                            scope.launch {
+                                authManager.signOut()
+                                drawerState.close()
+                                navController.navigate("login") {
+                                    popUpTo("dashboard") { inclusive = true }
                                 }
                             }
-                        ) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
                         }
-                    }
+                    )
                 }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { navController.navigate("add_card/-1") }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Card")
             }
         }
-    ) { innerPadding ->
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            gesturesEnabled = true,
-            drawerContent = {
-                ModalDrawerSheet {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .statusBarsPadding()
-                            .padding(top = innerPadding.calculateTopPadding())
-                    ) {
-                        AppDrawerContent(
-                            userName = account?.displayName ?: "User",
-                            userEmail = account?.email.orEmpty(),
-                            notifications = notifications,
-                            filters = filters,
-                            activeFilter = activeFilter,
-                            onFilterClick = { filter -> activeFilter = filter },
-                            onNotificationClick = { notification ->
-                                activeFilter = notification.filter
-                                scope.launch { drawerState.close() }
-                            },
-                            onSignOut = {
-                                scope.launch {
-                                    authManager.signOut()
-                                    drawerState.close()
-                                    navController.navigate("login") {
-                                        popUpTo("dashboard") { inclusive = true }
-                                    }
-                                }
-                            }
-                        )
-                    }
+    ) {
+        Scaffold(
+            floatingActionButton = {
+                FloatingActionButton(onClick = { navController.navigate("add_card/-1") }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Card")
                 }
             }
-        ) {
+        ) { innerPadding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -205,49 +218,6 @@ fun DashboardScreen(
                             onClick = { activeFilter = DashboardFilter.None },
                             label = { Text("${activeFilter.label}  x") }
                         )
-                    }
-                }
-
-                if (hasUnverifiedCards) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                            .clickable { activeFilter = DashboardFilter.Unverified },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "You have ${unverifiedCards.size} unverified auto-detected card(s)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    "Tap to review.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                            }
-                            Icon(
-                                Icons.Default.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        }
                     }
                 }
 
@@ -285,7 +255,7 @@ private fun AppDrawerContent(
             .verticalScroll(rememberScrollState())
     ) {
         ProfileSection(userName = userName, userEmail = userEmail)
-        Divider()
+        HorizontalDivider()
         DrawerSection(title = "Notifications") {
             if (notifications.isEmpty()) {
                 Text(
@@ -300,7 +270,7 @@ private fun AppDrawerContent(
                 }
             }
         }
-        Divider()
+        HorizontalDivider()
         DrawerSection(title = "Filters") {
             filters.filterNot { it is DashboardFilter.None }.forEach { filter ->
                 FilterCheckboxItem(
@@ -310,7 +280,7 @@ private fun AppDrawerContent(
                 )
             }
         }
-        Divider()
+        HorizontalDivider()
         DrawerSection(title = "Settings") {
             Row(
                 modifier = Modifier
@@ -352,9 +322,13 @@ private fun ProfileSection(userName: String, userEmail: String) {
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(userName, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
             Text(
-                userEmail,
+                text = userName,
+                color = MaterialTheme.colorScheme.onPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = userEmail,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f),
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,

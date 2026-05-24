@@ -26,9 +26,34 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+data class DetailedLoadingStep(
+    val title: String,
+    val description: String,
+    val percentage: Int,
+    val stepNumber: Int,
+    val totalSteps: Int
+)
+
 @Composable
 fun DynamicLoadingScreen(
     currentStep: LoadingStep,
+    modifier: Modifier = Modifier
+) {
+    DynamicLoadingScreen(
+        currentStep = DetailedLoadingStep(
+            title = currentStep.title,
+            description = currentStep.description,
+            percentage = currentStep.percentage,
+            stepNumber = currentStep.ordinal + 1,
+            totalSteps = LoadingStep.entries.size
+        ),
+        modifier = modifier
+    )
+}
+
+@Composable
+fun DynamicLoadingScreen(
+    currentStep: DetailedLoadingStep,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -77,16 +102,16 @@ fun DynamicLoadingScreen(
             )
             Spacer(modifier = Modifier.height(32.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LoadingStep.entries.forEach { step ->
+                repeat(currentStep.totalSteps) { index ->
                     StepIndicator(
-                        isActive = step == currentStep,
-                        isCompleted = step.ordinal < currentStep.ordinal
+                        isActive = index + 1 == currentStep.stepNumber,
+                        isCompleted = index + 1 < currentStep.stepNumber
                     )
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "Step ${currentStep.ordinal + 1} of ${LoadingStep.entries.size}",
+                text = "Step ${currentStep.stepNumber} of ${currentStep.totalSteps}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
             )

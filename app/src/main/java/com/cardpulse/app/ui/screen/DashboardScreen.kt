@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -122,69 +123,76 @@ fun DashboardScreen(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = true,
-        drawerContent = {
-            ModalDrawerSheet {
-                AppDrawerContent(
-                    userName = account?.displayName ?: "User",
-                    userEmail = account?.email.orEmpty(),
-                    notifications = notifications,
-                    filters = filters,
-                    activeFilter = activeFilter,
-                    onFilterClick = { filter -> activeFilter = filter },
-                    onNotificationClick = { notification ->
-                        activeFilter = notification.filter
-                        scope.launch { drawerState.close() }
-                    },
-                    onSignOut = {
-                        scope.launch {
-                            authManager.signOut()
-                            drawerState.close()
-                            navController.navigate("login") {
-                                popUpTo("dashboard") { inclusive = true }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("CardPulse") },
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        BadgedBox(
+                            badge = {
+                                if (unreadCount > 0) {
+                                    Badge { Text(unreadCount.toString()) }
+                                }
                             }
+                        ) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
                         }
                     }
-                )
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { navController.navigate("add_card/-1") }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Card")
             }
         }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("") },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            BadgedBox(
-                                badge = {
-                                    if (unreadCount > 0) {
-                                        Badge { Text(unreadCount.toString()) }
+    ) { innerPadding ->
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = true,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .padding(top = innerPadding.calculateTopPadding())
+                    ) {
+                        AppDrawerContent(
+                            userName = account?.displayName ?: "User",
+                            userEmail = account?.email.orEmpty(),
+                            notifications = notifications,
+                            filters = filters,
+                            activeFilter = activeFilter,
+                            onFilterClick = { filter -> activeFilter = filter },
+                            onNotificationClick = { notification ->
+                                activeFilter = notification.filter
+                                scope.launch { drawerState.close() }
+                            },
+                            onSignOut = {
+                                scope.launch {
+                                    authManager.signOut()
+                                    drawerState.close()
+                                    navController.navigate("login") {
+                                        popUpTo("dashboard") { inclusive = true }
                                     }
                                 }
-                            ) {
-                                Icon(Icons.Default.Notifications, contentDescription = "Notifications")
                             }
-                        }
+                        )
                     }
-                )
-            },
-            floatingActionButton = {
-                FloatingActionButton(onClick = { navController.navigate("add_card/-1") }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Card")
                 }
             }
-        ) { paddingValues ->
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
+                    .padding(innerPadding)
             ) {
                 if (activeFilter !is DashboardFilter.None) {
                     Row(
